@@ -58,6 +58,8 @@ class TcEnforcer:
                             iface: str,
                             wan_rate_mbit: float,
                             class_rates_mbit: Dict[int, float],
+                            headroom_factor: float = 0.90,
+                            cap_bulk_ceil: bool = True,
                             ) -> str:
         """Generate tc batch commands for a 4-class HTB + fq_codel hierarchy.
 
@@ -65,11 +67,15 @@ class TcEnforcer:
             iface: Network interface name (e.g. veth_rtr_lan).
             wan_rate_mbit: Total WAN rate in Mbit/s.
             class_rates_mbit: Dict of class_label → rate in Mbit/s.
+            headroom_factor: Bottleneck ownership fraction (default: 0.90).
+            cap_bulk_ceil: If True, caps bulk ceil at 70% of effective capacity.
 
         Returns:
             Multi-line string of tc batch commands.
         """
-        ceil = f"{wan_rate_mbit}mbit"
+        # Bottleneck Ownership Rule: Shape at 90% of WAN capacity so router owns the queue
+        eff_rate = round(wan_rate_mbit * headroom_factor, 2)
+        ceil = f"{eff_rate:.2f}mbit"
         lines = []
 
         # Remove existing qdiscs
@@ -81,25 +87,43 @@ class TcEnforcer:
             f"htb rate {ceil} ceil {ceil}"
         )
 
+        # Leaf qdisc parameters per class
+        leaf_configs = {
+            0: "fq_codel limit 1024 target 5ms interval 50ms ecn",
+            1: "fq_codel limit 1024 target 5ms interval 50ms ecn",
+            2: "fq_codel limit 1024 target 10ms interval 100ms ecn",
+            3: "fq_codel limit 1024 target 15ms interval 100ms",
+        }
+
         # Per-class HTB classes with fq_codel leaf qdiscs
         for cls_label in range(4):
             classid = CLASS_TO_HTB_CLASSID[cls_label]
-            rate = class_rates_mbit.get(cls_label, wan_rate_mbit * 0.15)
-            rate_str = f"{max(rate, 0.1):.2f}mbit"
+            raw_rate = class_rates_mbit.get(cls_label, wan_rate_mbit * 0.15)
+            # Scale rate to effective capacity
+            rate = round(raw_rate * headroom_factor, 2)
 
-            # Priority: lower number = higher priority
+            if cls_label == 3:
+                # Guaranteed >= 15% bulk starvation floor
+                rate = max(rate, round(eff_rate * 0.15, 2))
+                # Bulk ceil capped at 70% to guarantee 30% instant headroom for bursty interactive flows
+                cls_ceil = f"{max(rate, round(eff_rate * 0.70, 2)):.2f}mbit" if cap_bulk_ceil else ceil
+            else:
+                cls_ceil = ceil
+
+            rate_str = f"{max(rate, 0.1):.2f}mbit"
             prio = cls_label + 1
 
             lines.append(
                 f"class replace dev {iface} parent 1:1 classid {classid} "
-                f"htb rate {rate_str} ceil {ceil} prio {prio}"
+                f"htb rate {rate_str} ceil {cls_ceil} prio {prio}"
             )
 
-            # fq_codel leaf qdisc (handle = 10 + class_label + 1 to avoid collision with root 1:)
+            # Unique leaf qdisc handle (11:, 12:, 13:, 14:)
             handle = f"{10 + cls_label + 1}:"
+            leaf_qdisc = leaf_configs.get(cls_label, "fq_codel limit 1024 target 5ms interval 100ms ecn")
             lines.append(
                 f"qdisc replace dev {iface} parent {classid} handle {handle} "
-                f"fq_codel limit 1024 target 5ms interval 100ms ecn"
+                f"{leaf_qdisc}"
             )
 
         # tc filter rules: match fwmark to HTB class (IPv4)
@@ -107,8 +131,8 @@ class TcEnforcer:
             fwmark = CLASS_TO_FWMARK[cls_label]
             classid = CLASS_TO_HTB_CLASSID[cls_label]
             lines.append(
-                f"filter replace dev {iface} parent 1: protocol ip prio 1 "
-                f"handle {fwmark} fw flowid {classid}"
+                f"filter replace dev {iface} parent 1: protocol ip prio {cls_label + 1} "
+                f"handle 0x{fwmark:02x} fw flowid {classid}"
             )
 
         # tc filter rules: match fwmark to HTB class (IPv6)
@@ -116,18 +140,21 @@ class TcEnforcer:
             fwmark = CLASS_TO_FWMARK[cls_label]
             classid = CLASS_TO_HTB_CLASSID[cls_label]
             lines.append(
-                f"filter replace dev {iface} parent 1: protocol ipv6 prio 2 "
-                f"handle {fwmark} fw flowid {classid}"
+                f"filter replace dev {iface} parent 1: protocol ipv6 prio {cls_label + 10} "
+                f"handle 0x{fwmark:02x} fw flowid {classid}"
             )
 
         return "\n".join(lines)
 
-    def generate_iptables_rules(self, flow_marks: Optional[Dict[str, int]] = None) -> List[str]:
+    def generate_iptables_rules(self,
+                                flow_marks: Optional[Dict[str, int]] = None,
+                                include_icmp: bool = True) -> List[str]:
         """Generate iptables/ip6tables mangle rules for flow classification.
 
         Args:
             flow_marks: Optional dict of flow_spec → fwmark.
                         Format: "proto:port" or "proto:src_ip:dst_ip:src_port:dst_port"
+            include_icmp: If True, marks ICMP/IPv6-ICMP as 0x10 for priority probing.
 
         Returns:
             List of iptables command strings.
@@ -140,60 +167,90 @@ class TcEnforcer:
             f"ip netns exec {self.namespace} ip6tables -t mangle -F AEGIS"
         )
 
-        # Default standard service mappings
+        # Ensure PREROUTING and FORWARD hook jumps to AEGIS
+        commands.append(
+            f"ip netns exec {self.namespace} iptables -t mangle -C PREROUTING -j AEGIS 2>/dev/null || "
+            f"ip netns exec {self.namespace} iptables -t mangle -I PREROUTING 1 -j AEGIS"
+        )
+        commands.append(
+            f"ip netns exec {self.namespace} iptables -t mangle -C FORWARD -j AEGIS 2>/dev/null || "
+            f"ip netns exec {self.namespace} iptables -t mangle -I FORWARD 1 -j AEGIS"
+        )
+        commands.append(
+            f"ip netns exec {self.namespace} ip6tables -t mangle -C PREROUTING -j AEGIS 2>/dev/null || "
+            f"ip netns exec {self.namespace} ip6tables -t mangle -I PREROUTING 1 -j AEGIS"
+        )
+        commands.append(
+            f"ip netns exec {self.namespace} ip6tables -t mangle -C FORWARD -j AEGIS 2>/dev/null || "
+            f"ip netns exec {self.namespace} ip6tables -t mangle -I FORWARD 1 -j AEGIS"
+        )
+
+        # Prioritize ICMP / ICMPv6 probes with mark 0x10 (Class 1:10)
+        if include_icmp:
+            commands.append(
+                f"ip netns exec {self.namespace} iptables -t mangle -A AEGIS -p icmp -j MARK --set-mark 0x10"
+            )
+            commands.append(
+                f"ip netns exec {self.namespace} ip6tables -t mangle -A AEGIS -p ipv6-icmp -j MARK --set-mark 0x10"
+            )
+
+        # Default static standard service mappings (bidirectional: --sport AND --dport with explicit hex marks)
+        # Dynamic WebRTC video call (e.g. port 55005) is deliberately NOT in static rules;
+        # it requires AI FlowClassifier to classify and install dynamic flow marks.
         default_rules = [
-            # Class 0: Realtime voice / gaming (fwmark 10)
-            ("udp", 5004, 10),
-            ("udp", 5060, 10),
-            ("udp", 9000, 10),
-            # Class 1: Interactive video / streaming (fwmark 20)
-            ("tcp", 8001, 20),
-            ("tcp", 8002, 20),
-            ("tcp", 8003, 20),
-            ("udp", 8001, 20),
-            ("udp", 8002, 20),
-            ("udp", 8003, 20),
-            ("tcp", 1935, 20),
-            # Class 2: Responsive web / DNS (fwmark 30)
-            ("tcp", 80, 30),
-            ("tcp", 443, 30),
-            ("udp", 53, 30),
-            ("tcp", 53, 30),
-            # Class 3: Bulk transfer (fwmark 40)
-            ("tcp", 5201, 40),
+            # Class 0: Legacy VoIP / SIP (fwmark 0x10)
+            ("udp", 5060, "0x10"),
+            ("udp", 5061, "0x10"),
+            # Class 1: Gaming (fwmark 0x20)
+            ("udp", 9000, "0x20"),
+            # Class 2: Interactive video / streaming TVs / Web (fwmark 0x30)
+            ("tcp", 8001, "0x30"),
+            ("tcp", 8002, "0x30"),
+            ("tcp", 8003, "0x30"),
+            ("udp", 8001, "0x30"),
+            ("udp", 8002, "0x30"),
+            ("udp", 8003, "0x30"),
+            ("tcp", 1935, "0x30"),
+            ("tcp", 80, "0x30"),
+            ("tcp", 443, "0x30"),
+            ("udp", 53, "0x30"),
+            ("tcp", 53, "0x30"),
+            # Class 3: Bulk transfer (fwmark 0x40)
+            ("tcp", 5201, "0x40"),
         ]
 
-        for proto, port, fwmark in default_rules:
+        for proto, port, hex_mark in default_rules:
             commands.append(
-                f"ip netns exec {self.namespace} iptables -t mangle -A AEGIS -p {proto} --sport {port} -j MARK --set-mark {fwmark}"
+                f"ip netns exec {self.namespace} iptables -t mangle -A AEGIS -p {proto} --sport {port} -j MARK --set-mark {hex_mark}"
             )
             commands.append(
-                f"ip netns exec {self.namespace} iptables -t mangle -A AEGIS -p {proto} --dport {port} -j MARK --set-mark {fwmark}"
+                f"ip netns exec {self.namespace} iptables -t mangle -A AEGIS -p {proto} --dport {port} -j MARK --set-mark {hex_mark}"
             )
             commands.append(
-                f"ip netns exec {self.namespace} ip6tables -t mangle -A AEGIS -p {proto} --sport {port} -j MARK --set-mark {fwmark}"
+                f"ip netns exec {self.namespace} ip6tables -t mangle -A AEGIS -p {proto} --sport {port} -j MARK --set-mark {hex_mark}"
             )
             commands.append(
-                f"ip netns exec {self.namespace} ip6tables -t mangle -A AEGIS -p {proto} --dport {port} -j MARK --set-mark {fwmark}"
+                f"ip netns exec {self.namespace} ip6tables -t mangle -A AEGIS -p {proto} --dport {port} -j MARK --set-mark {hex_mark}"
             )
 
         # Custom flow marks from classifier / overrides
         if flow_marks:
-            for spec, fwmark in flow_marks.items():
+            for spec, mark_val in flow_marks.items():
+                m_hex = f"0x{mark_val:x}" if isinstance(mark_val, int) else (mark_val if str(mark_val).startswith("0x") else f"0x{int(mark_val):x}")
                 parts = spec.split(":")
                 if len(parts) == 2:
                     p_proto, p_port = parts[0], parts[1]
                     commands.append(
-                        f"ip netns exec {self.namespace} iptables -t mangle -I AEGIS 1 -p {p_proto} --sport {p_port} -j MARK --set-mark {fwmark}"
+                        f"ip netns exec {self.namespace} iptables -t mangle -I AEGIS 1 -p {p_proto} --sport {p_port} -j MARK --set-mark {m_hex}"
                     )
                     commands.append(
-                        f"ip netns exec {self.namespace} iptables -t mangle -I AEGIS 1 -p {p_proto} --dport {p_port} -j MARK --set-mark {fwmark}"
+                        f"ip netns exec {self.namespace} iptables -t mangle -I AEGIS 1 -p {p_proto} --dport {p_port} -j MARK --set-mark {m_hex}"
                     )
                     commands.append(
-                        f"ip netns exec {self.namespace} ip6tables -t mangle -I AEGIS 1 -p {p_proto} --sport {p_port} -j MARK --set-mark {fwmark}"
+                        f"ip netns exec {self.namespace} ip6tables -t mangle -I AEGIS 1 -p {p_proto} --sport {p_port} -j MARK --set-mark {m_hex}"
                     )
                     commands.append(
-                        f"ip netns exec {self.namespace} ip6tables -t mangle -I AEGIS 1 -p {p_proto} --dport {p_port} -j MARK --set-mark {fwmark}"
+                        f"ip netns exec {self.namespace} ip6tables -t mangle -I AEGIS 1 -p {p_proto} --dport {p_port} -j MARK --set-mark {m_hex}"
                     )
                 elif len(parts) == 5:
                     p_proto, s_ip, d_ip, s_port, d_port = parts
@@ -206,14 +263,16 @@ class TcEnforcer:
                         cmd4 += f" --sport {s_port}"
                     if d_port and d_port != "*":
                         cmd4 += f" --dport {d_port}"
-                    cmd4 += f" -j MARK --set-mark {fwmark}"
+                    cmd4 += f" -j MARK --set-mark {m_hex}"
                     commands.append(cmd4)
 
         return commands
 
-    def apply_iptables_rules(self, flow_marks: Optional[Dict[str, int]] = None) -> bool:
+    def apply_iptables_rules(self,
+                             flow_marks: Optional[Dict[str, int]] = None,
+                             include_icmp: bool = True) -> bool:
         """Apply iptables mangle rules inside the router namespace."""
-        cmds = self.generate_iptables_rules(flow_marks)
+        cmds = self.generate_iptables_rules(flow_marks, include_icmp=include_icmp)
         success = True
         for cmd in cmds:
             res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
@@ -232,6 +291,12 @@ class TcEnforcer:
             (success, output) tuple.
         """
         with self._lock:
+            # Delete existing root qdisc to avoid HTB "Change operation not supported" error on re-application
+            subprocess.run(
+                f"ip netns exec {self.namespace} tc qdisc del dev {iface} root 2>/dev/null || true",
+                shell=True, capture_output=True
+            )
+
             # Write batch file
             batch_file = tempfile.NamedTemporaryFile(
                 mode='w', suffix='.tc', prefix='aegis_',
@@ -274,13 +339,17 @@ class TcEnforcer:
 
     def apply_shaping(self,
                        wan_rate_mbit: float,
-                       class_rates_mbit: Dict[int, float]
+                       class_rates_mbit: Dict[int, float],
+                       headroom_factor: float = 0.90,
+                       cap_bulk_ceil: bool = True
                        ) -> Tuple[bool, str]:
         """Apply full bidirectional shaping on both download and upload interfaces.
 
         Args:
             wan_rate_mbit: Total WAN capacity.
             class_rates_mbit: Dict of class_label → allocated rate.
+            headroom_factor: Bottleneck ownership fraction (default: 0.90).
+            cap_bulk_ceil: If True, caps bulk ceil at 70% of effective capacity.
 
         Returns:
             (success, output) tuple.
@@ -288,7 +357,11 @@ class TcEnforcer:
         results = []
 
         for iface in [DOWNLOAD_IFACE, UPLOAD_IFACE]:
-            batch = self.generate_htb_batch(iface, wan_rate_mbit, class_rates_mbit)
+            batch = self.generate_htb_batch(
+                iface, wan_rate_mbit, class_rates_mbit,
+                headroom_factor=headroom_factor,
+                cap_bulk_ceil=cap_bulk_ceil
+            )
             ok, output = self.apply_batch(iface, batch)
             results.append((iface, ok, output))
             if not ok:

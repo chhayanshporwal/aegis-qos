@@ -61,16 +61,16 @@ HYSTERESIS_LOCK_SECONDS = 3.0   # Minimum time between policy changes
 # HTB class hierarchy:
 #   1:0  root qdisc
 #   1:1  root class (100% of WAN rate)
-#   1:10 realtime_voice  (DSCP EF, fwmark 10)
-#   1:20 interactive_video (DSCP AF41, fwmark 20)
-#   1:30 responsive_web   (DSCP AF21, fwmark 30)
-#   1:40 bulk_transfer     (DSCP BE, fwmark 40)
+#   1:10 realtime_voice  (DSCP EF, fwmark 0x10)
+#   1:20 interactive_video (DSCP AF41, fwmark 0x20)
+#   1:30 responsive_web   (DSCP AF21, fwmark 0x30)
+#   1:40 bulk_transfer     (DSCP BE, fwmark 0x40)
 
 CLASS_TO_FWMARK = {
-    0: 10,   # realtime_voice
-    1: 20,   # interactive_video
-    2: 30,   # responsive_web
-    3: 40,   # bulk_transfer
+    0: 0x10,   # realtime_voice / interactive
+    1: 0x20,   # gaming
+    2: 0x30,   # streaming / responsive web
+    3: 0x40,   # bulk_transfer
 }
 
 CLASS_TO_HTB_CLASSID = {
@@ -293,7 +293,7 @@ class PolicyEngine:
 
     def get_fwmark(self, class_label: int) -> int:
         """Get iptables fwmark for a traffic class."""
-        return CLASS_TO_FWMARK.get(class_label, 40)
+        return CLASS_TO_FWMARK.get(class_label, 0x40)
 
     def get_htb_classid(self, class_label: int) -> str:
         """Get HTB class ID for a traffic class."""

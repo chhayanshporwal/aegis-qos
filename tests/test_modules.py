@@ -374,8 +374,8 @@ class TestTcEnforcer:
         rates = {0: 25.0, 1: 35.0, 2: 25.0, 3: 15.0}
         batch = enforcer.generate_htb_batch("veth_rtr_lan", 100.0, rates)
 
-        for fwmark in [10, 20, 30, 40]:
-            assert f"handle {fwmark}" in batch, f"Missing fwmark {fwmark}"
+        for fwmark in [0x10, 0x20, 0x30, 0x40]:
+            assert f"handle 0x{fwmark:02x}" in batch or f"handle {fwmark}" in batch, f"Missing fwmark {fwmark}"
 
     @needs_root
     def test_atomic_apply_and_rollback(self, enforcer):
