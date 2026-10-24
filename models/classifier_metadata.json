@@ -1,0 +1,22 @@
+{
+  "feature_names": [
+    "packet_size_mean",
+    "packet_size_std",
+    "iat_mean_ms",
+    "iat_std_ms",
+    "packets_per_window",
+    "protocol",
+    "flow_duration_ms"
+  ],
+  "class_names": [
+    "realtime_voice",
+    "interactive_video",
+    "responsive_web",
+    "bulk_transfer"
+  ],
+  "macro_f1": 1.0,
+  "train_samples": 9600,
+  "test_samples": 2400,
+  "model_type": "LightGBM",
+  "onnx_opset": 15
+}

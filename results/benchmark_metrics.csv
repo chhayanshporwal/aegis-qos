@@ -1,0 +1,115 @@
+scenario,regime,elapsed_s,rtt_ms,jitter_ms,loss_pct,queue_depth_pkts,cpu_percent,gaming_rtt_ms,gaming_jitter_ms
+Scenario 1 (ISO + Video Call),baseline,0.52,114.1,18.8,0.0,0,1.0,,
+Scenario 1 (ISO + Video Call),baseline,1.06,112.88,21.74,0.0,0,0.0,,
+Scenario 1 (ISO + Video Call),baseline,1.58,109.62,24.31,0.0,0,1.0,,
+Scenario 1 (ISO + Video Call),baseline,2.14,109.85,25.45,0.0,0,0.0,,
+Scenario 1 (ISO + Video Call),baseline,2.65,108.4,26.6,0.0,0,1.5,,
+Scenario 1 (ISO + Video Call),baseline,3.19,107.16,27.44,0.0,0,1.0,,
+Scenario 1 (ISO + Video Call),baseline,3.73,106.4,27.98,0.0,0,1.0,,
+Scenario 1 (ISO + Video Call),baseline,4.25,104.43,28.83,0.0,0,0.0,,
+Scenario 1 (ISO + Video Call),baseline,4.76,106.9,29.13,0.0,0,0.0,,
+Scenario 1 (ISO + Video Call),baseline,5.32,106.68,29.71,0.0,0,0.5,,
+Scenario 1 (ISO + Video Call),baseline,5.87,109.25,30.22,0.0,0,0.0,,
+Scenario 1 (ISO + Video Call),baseline,6.41,110.58,30.69,0.0,0,0.9,,
+Scenario 1 (ISO + Video Call),deterministic,0.52,121.3,28.02,0.0,0,0.5,,
+Scenario 1 (ISO + Video Call),deterministic,1.05,115.02,30.94,0.0,0,1.0,,
+Scenario 1 (ISO + Video Call),deterministic,1.57,114.86,32.14,0.0,0,0.0,,
+Scenario 1 (ISO + Video Call),deterministic,2.12,110.17,32.91,0.0,0,0.5,,
+Scenario 1 (ISO + Video Call),deterministic,2.66,108.39,33.78,0.0,0,0.9,,
+Scenario 1 (ISO + Video Call),deterministic,3.18,106.47,35.23,0.0,0,0.5,,
+Scenario 1 (ISO + Video Call),deterministic,3.7,106.26,36.07,0.0,0,0.0,,
+Scenario 1 (ISO + Video Call),deterministic,4.23,106.53,36.57,0.0,0,0.0,,
+Scenario 1 (ISO + Video Call),deterministic,4.77,108.05,37.24,0.0,0,0.0,,
+Scenario 1 (ISO + Video Call),deterministic,5.33,108.19,38.0,0.0,0,0.5,,
+Scenario 1 (ISO + Video Call),deterministic,5.85,109.18,38.76,0.0,0,0.5,,
+Scenario 1 (ISO + Video Call),deterministic,6.38,109.3,40.3,0.0,0,0.0,,
+Scenario 1 (ISO + Video Call),aegis,0.57,122.73,19.31,0.0,0,0.4,,
+Scenario 1 (ISO + Video Call),aegis,1.12,122.86,22.35,0.0,0,0.5,,
+Scenario 1 (ISO + Video Call),aegis,1.65,120.81,24.83,0.0,0,0.5,,
+Scenario 1 (ISO + Video Call),aegis,2.18,117.09,26.9,0.0,0,0.0,,
+Scenario 1 (ISO + Video Call),aegis,2.72,116.08,28.33,0.0,0,0.9,,
+Scenario 1 (ISO + Video Call),aegis,3.23,110.89,29.99,0.0,0,1.0,,
+Scenario 1 (ISO + Video Call),aegis,3.76,107.81,30.39,0.0,0,1.0,,
+Scenario 1 (ISO + Video Call),aegis,4.28,109.49,30.57,0.0,0,0.5,,
+Scenario 1 (ISO + Video Call),aegis,4.86,110.76,30.88,0.0,0,0.0,,
+Scenario 1 (ISO + Video Call),aegis,5.41,112.56,31.06,0.0,0,0.5,,
+Scenario 1 (ISO + Video Call),aegis,6.0,114.48,31.25,0.0,0,0.4,,
+Scenario 1 (ISO + Video Call),aegis,6.58,114.57,31.95,0.0,0,0.0,,
+Scenario 2 (WAN Drop 100M->20M),baseline,0.0,114.81,15.0,0.0,0,0.0,,
+Scenario 2 (WAN Drop 100M->20M),baseline,0.53,109.67,20.29,0.0,0,1.4,,
+Scenario 2 (WAN Drop 100M->20M),baseline,1.06,107.95,22.8,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),baseline,1.59,105.34,24.59,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),baseline,2.11,99.45,25.35,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),baseline,2.63,101.18,25.59,0.0,0,0.9,,
+Scenario 2 (WAN Drop 100M->20M),baseline,3.17,99.2,25.75,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),baseline,3.69,101.06,25.88,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),baseline,4.23,100.9,26.36,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),baseline,4.74,101.08,26.97,0.0,0,0.0,,
+Scenario 2 (WAN Drop 100M->20M),baseline,5.26,103.49,27.25,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),baseline,5.8,107.09,27.36,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),baseline,6.36,109.1,27.43,0.0,0,1.0,,
+Scenario 2 (WAN Drop 100M->20M),baseline,6.88,111.8,27.47,0.0,0,0.0,,
+Scenario 2 (WAN Drop 100M->20M),baseline,7.43,113.62,27.55,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),baseline,7.94,116.34,27.66,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),deterministic,0.0,104.09,15.41,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),deterministic,0.52,105.79,17.89,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),deterministic,1.04,105.91,21.17,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),deterministic,1.56,107.83,24.24,0.0,0,0.0,,
+Scenario 2 (WAN Drop 100M->20M),deterministic,2.08,110.69,26.25,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),deterministic,2.63,110.54,27.89,0.0,0,1.0,,
+Scenario 2 (WAN Drop 100M->20M),deterministic,3.15,109.68,28.73,0.0,0,1.0,,
+Scenario 2 (WAN Drop 100M->20M),deterministic,3.67,110.11,29.76,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),deterministic,4.2,107.44,30.73,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),deterministic,4.71,103.99,30.99,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),deterministic,5.24,106.51,31.08,0.0,0,0.9,,
+Scenario 2 (WAN Drop 100M->20M),deterministic,5.83,110.22,31.24,0.0,0,0.0,,
+Scenario 2 (WAN Drop 100M->20M),deterministic,6.35,112.19,31.65,0.0,0,0.0,,
+Scenario 2 (WAN Drop 100M->20M),deterministic,6.87,115.96,31.97,0.0,0,0.0,,
+Scenario 2 (WAN Drop 100M->20M),deterministic,7.45,119.26,32.42,0.0,0,0.4,,
+Scenario 2 (WAN Drop 100M->20M),aegis,0.0,102.51,9.05,0.0,0,0.0,,
+Scenario 2 (WAN Drop 100M->20M),aegis,0.57,102.82,14.23,0.0,0,0.4,,
+Scenario 2 (WAN Drop 100M->20M),aegis,1.13,99.32,16.63,0.0,0,1.0,,
+Scenario 2 (WAN Drop 100M->20M),aegis,1.64,98.54,19.95,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),aegis,2.17,95.1,22.29,0.0,0,0.9,,
+Scenario 2 (WAN Drop 100M->20M),aegis,2.73,93.48,22.93,0.0,0,1.0,,
+Scenario 2 (WAN Drop 100M->20M),aegis,3.25,91.4,23.69,0.0,0,0.0,,
+Scenario 2 (WAN Drop 100M->20M),aegis,3.77,90.78,24.47,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),aegis,4.32,90.53,25.19,0.0,0,0.9,,
+Scenario 2 (WAN Drop 100M->20M),aegis,4.9,90.88,25.95,0.0,0,0.5,,
+Scenario 2 (WAN Drop 100M->20M),aegis,5.42,106.18,28.41,0.0,0,0.9,,
+Scenario 3 (3 TVs + Gaming),baseline,0.52,,,0.0,0,1.5,120.03,8.74
+Scenario 3 (3 TVs + Gaming),baseline,1.02,,,0.0,0,53.3,91.64,10.6
+Scenario 3 (3 TVs + Gaming),baseline,1.53,,,0.0,0,78.1,78.12,10.89
+Scenario 3 (3 TVs + Gaming),baseline,2.03,,,0.0,0,78.0,71.71,10.77
+Scenario 3 (3 TVs + Gaming),baseline,2.54,,,0.0,0,78.5,66.97,10.2
+Scenario 3 (3 TVs + Gaming),baseline,3.04,,,0.0,0,72.6,63.66,9.37
+Scenario 3 (3 TVs + Gaming),baseline,3.55,,,0.0,0,53.3,61.08,8.5
+Scenario 3 (3 TVs + Gaming),baseline,4.05,,,0.0,0,43.1,59.43,7.77
+Scenario 3 (3 TVs + Gaming),baseline,4.55,,,0.0,0,9.3,58.64,7.26
+Scenario 3 (3 TVs + Gaming),baseline,5.07,,,0.0,0,1.5,60.63,7.34
+Scenario 3 (3 TVs + Gaming),baseline,5.59,,,0.0,0,0.0,63.05,7.97
+Scenario 3 (3 TVs + Gaming),baseline,6.1,,,0.0,0,0.5,65.77,8.77
+Scenario 3 (3 TVs + Gaming),deterministic,0.52,,,0.0,0,0.5,91.23,8.82
+Scenario 3 (3 TVs + Gaming),deterministic,1.02,,,0.0,0,2.1,70.95,11.18
+Scenario 3 (3 TVs + Gaming),deterministic,1.53,,,0.0,0,3.1,63.05,10.09
+Scenario 3 (3 TVs + Gaming),deterministic,2.03,,,0.0,0,2.6,58.77,8.7
+Scenario 3 (3 TVs + Gaming),deterministic,2.53,,,0.0,0,3.1,56.31,7.8
+Scenario 3 (3 TVs + Gaming),deterministic,3.04,,,0.0,0,2.6,55.21,7.55
+Scenario 3 (3 TVs + Gaming),deterministic,3.54,,,0.0,0,1.6,54.71,7.62
+Scenario 3 (3 TVs + Gaming),deterministic,4.04,,,0.0,0,2.1,54.95,8.01
+Scenario 3 (3 TVs + Gaming),deterministic,4.55,,,0.0,0,10.2,54.16,8.38
+Scenario 3 (3 TVs + Gaming),deterministic,5.07,,,0.0,0,0.0,56.05,8.83
+Scenario 3 (3 TVs + Gaming),deterministic,5.65,,,0.0,0,0.0,59.89,9.78
+Scenario 3 (3 TVs + Gaming),deterministic,6.23,,,0.0,0,0.0,62.8,10.59
+Scenario 3 (3 TVs + Gaming),aegis,0.51,,,0.0,0,1.5,95.72,12.45
+Scenario 3 (3 TVs + Gaming),aegis,1.01,,,0.0,0,72.4,70.75,12.79
+Scenario 3 (3 TVs + Gaming),aegis,1.52,,,0.0,0,78.7,63.21,11.0
+Scenario 3 (3 TVs + Gaming),aegis,2.02,,,0.0,0,74.5,58.83,9.33
+Scenario 3 (3 TVs + Gaming),aegis,2.53,,,0.0,0,55.1,56.39,8.11
+Scenario 3 (3 TVs + Gaming),aegis,3.03,,,0.0,0,54.6,54.65,7.28
+Scenario 3 (3 TVs + Gaming),aegis,3.54,,,0.0,0,52.8,53.45,6.67
+Scenario 3 (3 TVs + Gaming),aegis,4.04,,,0.0,0,16.0,52.83,6.26
+Scenario 3 (3 TVs + Gaming),aegis,4.54,,,0.0,0,9.3,52.6,6.32
+Scenario 3 (3 TVs + Gaming),aegis,5.09,,,0.0,0,0.0,54.38,6.46
+Scenario 3 (3 TVs + Gaming),aegis,5.62,,,0.0,0,0.0,57.91,7.29
+Scenario 3 (3 TVs + Gaming),aegis,6.14,,,0.0,0,0.5,60.64,8.8
