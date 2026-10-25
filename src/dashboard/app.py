@@ -225,7 +225,7 @@ def main():
         )
         fig.update_yaxes(title_text="RTT (ms)", secondary_y=False)
         fig.update_yaxes(title_text="Jitter (ms)", secondary_y=True)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with chart2:
         st.subheader("📊 Bandwidth Allocation")
@@ -242,7 +242,7 @@ def main():
             yaxis_title="Rate (Mbit/s)",
             showlegend=False,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # ── Charts Row 2: Loss + CPU, Fairness ───────────────────────────────────
     chart3, chart4 = st.columns(2)
@@ -271,7 +271,7 @@ def main():
         )
         fig.update_yaxes(title_text="Loss (%)", secondary_y=False)
         fig.update_yaxes(title_text="CPU (%)", secondary_y=True)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with chart4:
         st.subheader("⚖️ Jain's Fairness Index")
@@ -289,7 +289,7 @@ def main():
             height=350, margin=dict(l=20, r=20, t=30, b=20),
             yaxis=dict(range=[0, 1.05]),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # ── Live Real-World Flows Table (if present) ─────────────────────────────
     if metrics.get("active_flows"):
@@ -307,7 +307,7 @@ def main():
                 "Method": f.get("method"),
                 "FwMark": f.get("fwmark"),
             })
-        st.dataframe(flows_data, use_container_width=True)
+        st.dataframe(flows_data, width="stretch")
 
     # ── Auto-refresh ─────────────────────────────────────────────────────────
     time.sleep(refresh)
