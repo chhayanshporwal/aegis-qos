@@ -263,6 +263,13 @@ class LiveWifiDaemon:
         self.sniffer.stop()
         self.enforcer.rollback()
         teardown_ifb_redirect(self.iface, self.ifb)
+        try:
+            if os.path.exists(self.state_file):
+                os.remove(self.state_file)
+            if os.path.exists("/tmp/aegis_commands.json"):
+                os.remove("/tmp/aegis_commands.json")
+        except Exception:
+            pass
 
     def _print_terminal_table(self, flows: List[Dict]):
         """Render a clean ASCII status and flow classification table."""
@@ -338,6 +345,7 @@ class LiveWifiDaemon:
             tmp_path = f"{self.state_file}.tmp"
             with open(tmp_path, "w") as f:
                 json.dump(data, f, indent=2)
+            os.chmod(tmp_path, 0o666)
             os.replace(tmp_path, self.state_file)
         except Exception:
             pass
