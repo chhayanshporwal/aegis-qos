@@ -136,6 +136,7 @@ class FlowClassifier:
                  confidence_threshold: float = CONFIDENCE_THRESHOLD):
         self.confidence_threshold = confidence_threshold
         self.override_map: Dict[str, int] = {}
+        self.override_expiry: Dict[str, float] = {}
         self._flow_windows: Dict[str, FlowWindow] = defaultdict(FlowWindow)
         self._lock = threading.Lock()
         self._session = None
@@ -189,10 +190,14 @@ class FlowClassifier:
             (class_label, confidence, method) where method is one of:
             "onnx", "pkl", "deterministic_fallback", "manual_override"
         """
-        # 1. Check manual override first
+        # 1. Check manual override first (with TTL expiration check)
         if flow_id in self.override_map:
-            label = self.override_map[flow_id]
-            return label, 1.0, "manual_override"
+            expiry = self.override_expiry.get(flow_id)
+            if expiry is not None and time.time() > expiry:
+                self.clear_override(flow_id)
+            else:
+                label = self.override_map[flow_id]
+                return label, 1.0, "manual_override"
 
         # 2. Extract features if not provided
         if features is None:
@@ -247,14 +252,33 @@ class FlowClassifier:
             label = _deterministic_fallback(features)
             return label, 0.5, "deterministic_fallback"
 
-    def set_override(self, flow_id: str, class_label: int):
-        """Manual override: force a flow's classification."""
+    def set_override(self, flow_id: str, class_label: int,
+                     ttl_seconds: Optional[float] = None):
+        """Manual override: force a flow's classification, optionally with TTL."""
         if 0 <= class_label < len(CLASS_NAMES):
             self.override_map[flow_id] = class_label
+            if ttl_seconds is not None and ttl_seconds > 0:
+                self.override_expiry[flow_id] = time.time() + ttl_seconds
+            else:
+                self.override_expiry.pop(flow_id, None)
 
     def clear_override(self, flow_id: str):
         """Remove a manual override."""
         self.override_map.pop(flow_id, None)
+        self.override_expiry.pop(flow_id, None)
+
+    def clear_all_overrides(self):
+        """Remove all manual overrides."""
+        self.override_map.clear()
+        self.override_expiry.clear()
+
+    def cleanup_expired_overrides(self) -> List[str]:
+        """Purge all expired overrides and return list of purged flow_ids."""
+        now = time.time()
+        expired = [fid for fid, exp in list(self.override_expiry.items()) if now > exp]
+        for fid in expired:
+            self.clear_override(fid)
+        return expired
 
     def get_class_name(self, label: int) -> str:
         """Return human-readable class name."""

@@ -152,6 +152,7 @@ async def set_intent(req: IntentRequest):
         priority_boost=req.priority_boost,
         ttl_seconds=req.ttl_seconds,
     )
+    get_classifier().set_override(req.flow_id, req.target_class, ttl_seconds=req.ttl_seconds)
 
     return {
         "status": "intent_set",
@@ -198,6 +199,11 @@ async def trigger_rollback():
     """Trigger safe-state rollback to fq_codel on all interfaces."""
     enforcer = get_enforcer()
     policy = get_policy()
+    classifier = get_classifier()
+
+    # Clear all overrides and intents
+    classifier.clear_all_overrides()
+    policy.clear_intents()
 
     # Transition policy to EMERGENCY
     policy.transition(PolicyState.EMERGENCY)
@@ -213,6 +219,16 @@ async def trigger_rollback():
         message=message,
         rollback_count=enforcer.rollback_count,
     )
+
+
+@app.post("/resume")
+async def resume_shaping():
+    """Resume dynamic QoS shaping from safe state."""
+    policy = get_policy()
+    policy.transition(PolicyState.IDLE)
+    policy.transition(PolicyState.MONITORING)
+    policy.transition(PolicyState.SHAPING)
+    return {"status": "shaping_resumed", "fsm_state": policy.state.value}
 
 
 @app.get("/metrics")

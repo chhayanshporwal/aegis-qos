@@ -193,7 +193,20 @@ def main():
             }
             applied = False
 
-            # 1. Try REST API if online
+            # 1. Dispatch directly to Live Wi-Fi Daemon command queue if live
+            if live_wifi_active:
+                try:
+                    cmd_path = "/tmp/aegis_commands.json"
+                    with open(f"{cmd_path}.tmp", "w") as f:
+                        json.dump({"action": "intent", **intent_payload}, f)
+                    os.chmod(f"{cmd_path}.tmp", 0o666)
+                    os.replace(f"{cmd_path}.tmp", cmd_path)
+                    st.success(f"Intent applied to Live Wi-Fi daemon for {intent_flow} (+{intent_boost}%, TTL: {intent_ttl}s)")
+                    applied = True
+                except Exception as ex:
+                    st.error(f"Error signaling live daemon: {ex}")
+
+            # 2. Also dispatch to REST API if online
             if api_online:
                 try:
                     resp = requests.post(f"{api_url}/intent", json=intent_payload, timeout=2.0)
@@ -205,26 +218,53 @@ def main():
                 except Exception:
                     pass
 
-            # 2. If API is offline, dispatch directly to Live Wi-Fi Daemon command queue
-            if not applied and live_wifi_active:
-                try:
-                    cmd_path = "/tmp/aegis_commands.json"
-                    with open(f"{cmd_path}.tmp", "w") as f:
-                        json.dump({"action": "intent", **intent_payload}, f)
-                    os.replace(f"{cmd_path}.tmp", cmd_path)
-                    st.success(f"Intent applied to Live Wi-Fi daemon for {intent_flow} (+{intent_boost}%, TTL: {intent_ttl}s)")
-                    applied = True
-                except Exception as ex:
-                    st.error(f"Error signaling live daemon: {ex}")
-
             if not applied:
                 st.warning("⚠️ No active QoS engine detected to shape traffic. Start the Live Wi-Fi daemon in a terminal:\n```bash\nsudo /home/ubuntu/aegis-venv/bin/python scripts/run_live_wifi.py --iface enp0s1 --wan-rate 30.0\n```")
 
         st.divider()
+        if metrics.get("fsm_state") == "EMERGENCY":
+            st.error("⚠️ **System currently in EMERGENCY Safe State (fq_codel)**")
+            if st.button("🟢 Resume QoS Shaping", type="primary"):
+                resumed = False
+                if live_wifi_active:
+                    try:
+                        cmd_path = "/tmp/aegis_commands.json"
+                        with open(f"{cmd_path}.tmp", "w") as f:
+                            json.dump({"action": "resume"}, f)
+                        os.chmod(f"{cmd_path}.tmp", 0o666)
+                        os.replace(f"{cmd_path}.tmp", cmd_path)
+                        st.success("Resumed shaping signal sent to Live Wi-Fi Daemon")
+                        resumed = True
+                    except Exception as ex:
+                        st.error(f"Failed to signal live daemon: {ex}")
+                if api_online:
+                    try:
+                        resp = requests.post(f"{api_url}/resume", timeout=2.0)
+                        if resp.status_code == 200:
+                            st.success("Shaping resumed via API")
+                            resumed = True
+                    except Exception:
+                        pass
+                if resumed:
+                    st.rerun()
+
         if st.button("🔴 Emergency Rollback", type="secondary"):
             rollback_applied = False
 
-            # 1. Try REST API
+            # 1. Signal Live Wi-Fi daemon directly if running
+            if live_wifi_active:
+                try:
+                    cmd_path = "/tmp/aegis_commands.json"
+                    with open(f"{cmd_path}.tmp", "w") as f:
+                        json.dump({"action": "rollback"}, f)
+                    os.chmod(f"{cmd_path}.tmp", 0o666)
+                    os.replace(f"{cmd_path}.tmp", cmd_path)
+                    st.warning("Emergency Rollback signal sent to Live Wi-Fi Daemon")
+                    rollback_applied = True
+                except Exception as ex:
+                    st.error(f"Failed to signal live daemon: {ex}")
+
+            # 2. Also signal REST API if online
             if api_online:
                 try:
                     resp = requests.post(f"{api_url}/rollback", timeout=2.0)
@@ -235,18 +275,6 @@ def main():
                         st.error(f"Rollback failed: {resp.text}")
                 except Exception:
                     pass
-
-            # 2. Try Live Wi-Fi daemon command queue if running
-            if not rollback_applied and live_wifi_active:
-                try:
-                    cmd_path = "/tmp/aegis_commands.json"
-                    with open(f"{cmd_path}.tmp", "w") as f:
-                        json.dump({"action": "rollback"}, f)
-                    os.replace(f"{cmd_path}.tmp", cmd_path)
-                    st.warning("Emergency Rollback signal sent to Live Wi-Fi Daemon")
-                    rollback_applied = True
-                except Exception as ex:
-                    st.error(f"Failed to signal live daemon: {ex}")
 
             # 3. Direct local kernel rollback (ALWAYS SUCCEEDS)
             if not rollback_applied:

@@ -210,7 +210,7 @@ class TestScenario4Setup:
         assert "rate 45.00mbit" in batch_down  # 50 * 0.90 = 45 Mbps effective
         assert "rate 9.00mbit" in batch_up     # 10 * 0.90 = 9 Mbps effective
 
-    def test_live_wifi_flow_metadata_and_class_name(self):
+    def test_live_wifi_flow_metadata_and_class_name(self, tmp_path):
         """Live Wi-Fi daemon must correctly resolve human-readable class names and active intents without AttributeError."""
         from scripts.run_live_wifi import LiveWifiDaemon
         from src.policy.policy_engine import UserIntent
@@ -219,7 +219,8 @@ class TestScenario4Setup:
         assert not intent.expired
         assert not intent.is_expired
 
-        daemon = LiveWifiDaemon(iface="lo", ifb="ifb0", wan_rate=30.0)
+        test_state = str(tmp_path / "test_live_state.json")
+        daemon = LiveWifiDaemon(iface="lo", ifb="ifb0", wan_rate=30.0, state_file=test_state)
         assert daemon.classifier.get_class_name(0) == "realtime_voice"
         assert daemon.classifier.get_class_name(1) == "interactive_video"
         assert daemon.classifier.get_class_name(2) == "responsive_web"
@@ -234,5 +235,62 @@ class TestScenario4Setup:
             data = json.load(f)
         assert len(data["active_intents"]) == 1
         assert data["active_intents"][0]["flow_id"] == "test_flow"
+
+
+class TestOverrideTTLAndRollback:
+    """Test suite for FlowClassifier TTL expiration, PolicyEngine intent clearing, and Emergency Rollback."""
+
+    def test_flow_classifier_override_ttl_expiration(self):
+        """Manual overrides with TTL must automatically expire and fall through to normal classification."""
+        from src.models.flow_classifier import FlowClassifier
+
+        clf = FlowClassifier(onnx_path="models/flow_classifier.onnx", pkl_path="models/flow_classifier_lgbm.pkl")
+        fid = "flow_ttl_test"
+
+        # Set manual override with 0.15s TTL
+        clf.set_override(fid, 0, ttl_seconds=0.15)
+        lbl, conf, method = clf.classify(fid)
+        assert lbl == 0
+        assert method == "manual_override"
+        assert fid in clf.override_map
+
+        # Wait for TTL expiration
+        time.sleep(0.2)
+        lbl_after, conf_after, method_after = clf.classify(fid)
+        assert method_after != "manual_override"
+        assert fid not in clf.override_map
+        assert fid not in clf.override_expiry
+
+    def test_flow_classifier_clear_all_overrides(self):
+        """clear_all_overrides must wipe all manual overrides."""
+        from src.models.flow_classifier import FlowClassifier
+
+        clf = FlowClassifier(onnx_path="models/flow_classifier.onnx", pkl_path="models/flow_classifier_lgbm.pkl")
+        clf.set_override("f1", 0, ttl_seconds=60.0)
+        clf.set_override("f2", 1)
+        assert len(clf.override_map) == 2
+
+        clf.clear_all_overrides()
+        assert len(clf.override_map) == 0
+        assert len(clf.override_expiry) == 0
+
+    def test_policy_engine_clear_intents_and_emergency(self):
+        """PolicyEngine must clear intents on clear_intents() and on transition to EMERGENCY."""
+        from src.policy.policy_engine import PolicyEngine, PolicyState
+
+        engine = PolicyEngine(wan_rate_mbit=50.0)
+        engine.add_intent("flow_1", 0, 15.0, 60.0)
+        engine.add_intent("flow_2", 1, 10.0, 60.0)
+        assert len(engine.user_intents) == 2
+
+        engine.clear_intents()
+        assert len(engine.user_intents) == 0
+
+        # Adding intent and transitioning to EMERGENCY
+        engine.add_intent("flow_3", 0, 15.0, 60.0)
+        assert len(engine.user_intents) == 1
+        engine.transition(PolicyState.EMERGENCY)
+        assert engine.state == PolicyState.EMERGENCY
+        assert len(engine.user_intents) == 0
 
 

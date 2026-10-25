@@ -420,12 +420,21 @@ class TcEnforcer:
 
         return True, "Shaping applied on both interfaces"
 
+    def clear_iptables_rules(self):
+        """Flush AEGIS mangle chain for IPv4 and IPv6."""
+        for ipt in ["iptables", "ip6tables"]:
+            subprocess.run(
+                f"{self.ns_prefix}{ipt} -t mangle -F AEGIS 2>/dev/null || true",
+                shell=True, capture_output=True
+            )
+
     def rollback(self) -> Tuple[bool, str]:
         """Manually trigger safe-state rollback on both interfaces."""
         results = []
         for iface in [self.download_iface, self.upload_iface]:
             ok = self._rollback_safe_state(iface, "Manual rollback requested")
             results.append((iface, ok))
+        self.clear_iptables_rules()
         success = all(ok for _, ok in results)
         return success, "Rolled back to fq_codel safe state"
 

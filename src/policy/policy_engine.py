@@ -161,6 +161,8 @@ class PolicyEngine:
             self.state = new_state
             self._last_policy_change = now
             self._state_history.append((now, new_state))
+            if new_state == PolicyState.EMERGENCY:
+                self._intents.clear()
             return True
 
     def update_flow_counts(self, counts: Dict[int, int]):
@@ -250,11 +252,17 @@ class PolicyEngine:
         with self._lock:
             self._intents.pop(flow_id, None)
 
-    def _expire_intents(self):
-        """Remove expired intents."""
+    def clear_intents(self):
+        """Clear all active user intents."""
+        with self._lock:
+            self._intents.clear()
+
+    def _expire_intents(self) -> List[str]:
+        """Remove expired intents and return list of expired flow_ids."""
         expired = [k for k, v in self._intents.items() if v.expired]
         for k in expired:
             del self._intents[k]
+        return expired
 
     def jains_fairness_index(self, throughputs: Optional[List[float]] = None) -> float:
         """Compute Jain's fairness index.

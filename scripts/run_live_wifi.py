@@ -166,18 +166,35 @@ class LiveWifiDaemon:
                         with open(cmd_file, "r") as f:
                             cmd = json.load(f)
                         os.remove(cmd_file)
-                        if cmd.get("action") == "rollback":
+                        action = cmd.get("action")
+                        if action == "rollback":
+                            print("[LiveWi-Fi] 🔴 Emergency Rollback commanded! Resetting to safe fq_codel...")
                             self.enforcer.rollback()
                             self.policy.transition(PolicyState.EMERGENCY)
-                        elif cmd.get("action") == "intent":
+                            self.policy.clear_intents()
+                            self.classifier.clear_all_overrides()
+                        elif action == "resume":
+                            print("[LiveWi-Fi] 🟢 Resuming QoS shaping from safe state...")
+                            self.policy.transition(PolicyState.IDLE)
+                            self.policy.transition(PolicyState.MONITORING)
+                            self.policy.transition(PolicyState.SHAPING)
+                        elif action == "intent":
                             fid = cmd.get("flow_id", "")
                             t_cls = int(cmd.get("target_class", 0))
                             boost = float(cmd.get("priority_boost", 10.0))
                             ttl = float(cmd.get("ttl_seconds", 60.0))
                             self.policy.add_intent(fid, t_cls, boost, ttl)
-                            self.classifier.set_override(fid, t_cls)
-                    except Exception:
-                        pass
+                            self.classifier.set_override(fid, t_cls, ttl_seconds=ttl)
+                            if self.policy.state in (PolicyState.EMERGENCY, PolicyState.IDLE):
+                                self.policy.transition(PolicyState.IDLE)
+                                self.policy.transition(PolicyState.MONITORING)
+                                self.policy.transition(PolicyState.SHAPING)
+                    except Exception as ex:
+                        print(f"[LiveWi-Fi] Error processing command: {ex}")
+
+                # Periodically purge expired overrides and expired intents
+                self.classifier.cleanup_expired_overrides()
+                self.policy._expire_intents()
 
                 # A. Measure live RTT to 1.1.1.1
                 rtt, jitter, loss = self.estimator.measure_rtt()
@@ -220,23 +237,28 @@ class LiveWifiDaemon:
                         "fwmark": f"0x{mark:x}",
                     })
 
-                # C. Dynamically update iptables fwmark rules
-                if dynamic_marks:
-                    self.enforcer.apply_iptables_rules(flow_marks=dynamic_marks, include_icmp=True)
+                # C & D. Dynamically update iptables fwmark rules & traffic shaping
+                if self.policy.state == PolicyState.EMERGENCY:
+                    # In safe-state EMERGENCY: maintain baseline fq_codel, do NOT re-shape
+                    allocations = {0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0}
+                else:
+                    # C. Dynamically update iptables fwmark rules
+                    if dynamic_marks:
+                        self.enforcer.apply_iptables_rules(flow_marks=dynamic_marks, include_icmp=True)
 
-                # D. Dynamically recompute and apply bandwidth allocations
-                eff_wan_rate = self.estimator.wan_rate_mbit
-                allocations = self.policy.compute_allocations(
-                    active_classes=list(active_classes),
-                    wan_rate_mbit=eff_wan_rate
-                )
-                self.enforcer.apply_shaping(
-                    wan_rate_mbit=eff_wan_rate,
-                    class_rates_mbit=allocations,
-                    headroom_factor=0.90,
-                    cap_bulk_ceil=True,
-                    upload_rate_mbit=self.upload_rate
-                )
+                    # D. Dynamically recompute and apply bandwidth allocations
+                    eff_wan_rate = self.estimator.wan_rate_mbit
+                    allocations = self.policy.compute_allocations(
+                        active_classes=list(active_classes),
+                        wan_rate_mbit=eff_wan_rate
+                    )
+                    self.enforcer.apply_shaping(
+                        wan_rate_mbit=eff_wan_rate,
+                        class_rates_mbit=allocations,
+                        headroom_factor=0.90,
+                        cap_bulk_ceil=True,
+                        upload_rate_mbit=self.upload_rate
+                    )
 
                 # E. Print Live Terminal Table
                 self._print_terminal_table(classified_flows)
@@ -348,7 +370,12 @@ class LiveWifiDaemon:
             os.chmod(tmp_path, 0o666)
             os.replace(tmp_path, self.state_file)
         except Exception:
-            pass
+            try:
+                with open(self.state_file, "w") as f:
+                    json.dump(data, f, indent=2)
+                os.chmod(self.state_file, 0o666)
+            except Exception:
+                pass
 
 
 # ── Entrypoint ───────────────────────────────────────────────────────────────
