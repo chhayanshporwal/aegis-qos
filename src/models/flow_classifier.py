@@ -161,6 +161,21 @@ class FlowClassifier:
         """Ingest a packet's L3/L4 metadata into the flow's sliding window."""
         self._flow_windows[flow_id].add_packet(timestamp_ms, size_bytes, protocol)
 
+    def record_packet(self, flow_id: str, timestamp_ms: float,
+                      pkt_len: int, proto: int):
+        """Record packet metadata (alias for add_packet)."""
+        self.add_packet(flow_id, timestamp_ms, pkt_len, proto)
+
+    def get_active_flow_ids(self, active_within_ms: float = 3000.0) -> List[str]:
+        """Return list of flow_ids that had packets within the last active_within_ms."""
+        now = time.time() * 1000.0
+        active = []
+        for flow_id, win in list(self._flow_windows.items()):
+            with win.lock:
+                if win.packets and (now - win.packets[-1][0]) <= active_within_ms:
+                    active.append(flow_id)
+        return active
+
     def classify(self, flow_id: str,
                  features: Optional[np.ndarray] = None
                  ) -> Tuple[int, float, str]:

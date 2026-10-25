@@ -78,8 +78,8 @@ class CapacityEstimator:
         """
         target = self.target_ipv6 if use_ipv6 else self.target_ip
         ping_cmd = "ping6" if use_ipv6 else "ping"
-
-        cmd = f"ip netns exec {self.namespace} {ping_cmd} -c 3 -W 2 -q {target}"
+        ns_prefix = f"ip netns exec {self.namespace} " if self.namespace else ""
+        cmd = f"{ns_prefix}{ping_cmd} -c 3 -W 2 -q {target}"
         try:
             result = subprocess.run(
                 cmd, shell=True, capture_output=True, text=True, timeout=10

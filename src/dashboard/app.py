@@ -48,6 +48,21 @@ if "rtt_history" not in st.session_state:
     st.session_state.throughput_history = {c: deque(maxlen=MAX_POINTS) for c in CLASS_NAMES}
 
 
+import os
+import json
+
+
+def fetch_live_state(state_file: str = "/tmp/aegis_live_state.json") -> Optional[dict]:
+    """Fetch live metrics directly from live Wi-Fi daemon state file."""
+    if os.path.exists(state_file):
+        try:
+            with open(state_file, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return None
+
+
 def fetch_metrics(api_url: str) -> dict:
     """Fetch live metrics from AegisQoS API."""
     try:
@@ -116,11 +131,16 @@ def main():
     # ── Fetch Data ───────────────────────────────────────────────────────────
     metrics = fetch_metrics(api_url)
     status = fetch_status(api_url)
+    live_state = fetch_live_state()
 
-    if metrics is None:
-        st.warning("⚠️ Cannot connect to AegisQoS API. Is the server running?")
-        st.info(f"Expected API at: `{api_url}`")
-        st.code("cd /home/ubuntu/aegis-qos && python -m src.api.server", language="bash")
+    is_live_wifi = False
+    if metrics is None and live_state is not None:
+        metrics = live_state
+        is_live_wifi = True
+        st.success(f"🟢 **Live Real-Wi-Fi Mode Active** on `{live_state.get('interface', 'enp0s1')}` with IFB ingress redirection (`{live_state.get('ingress_iface', 'ifb0')}`)")
+    elif metrics is None:
+        st.warning("⚠️ Cannot connect to AegisQoS API and no live Wi-Fi state found. Is the server or live daemon running?")
+        st.info(f"Start API server: `python -m src.api.server` or Live Wi-Fi: `sudo python scripts/run_live_wifi.py`")
 
         # Show demo mode with sample data
         st.divider()
@@ -271,6 +291,24 @@ def main():
             yaxis=dict(range=[0, 1.05]),
         )
         st.plotly_chart(fig, use_container_width=True)
+
+    # ── Live Real-World Flows Table (if present) ─────────────────────────────
+    if metrics.get("active_flows"):
+        st.divider()
+        st.subheader("🌐 Active Flows Detected by Zero-DPI Sniffer")
+        flows_data = []
+        for f in metrics["active_flows"]:
+            flows_data.append({
+                "Protocol": f.get("proto"),
+                "Source": f.get("src"),
+                "Destination": f.get("dst"),
+                "Packets/sec": f.get("pps"),
+                "Predicted Class": f.get("class_name"),
+                "Confidence": f.get("confidence"),
+                "Method": f.get("method"),
+                "FwMark": f.get("fwmark"),
+            })
+        st.dataframe(flows_data, use_container_width=True)
 
     # ── Auto-refresh ─────────────────────────────────────────────────────────
     time.sleep(refresh)

@@ -35,8 +35,8 @@ class TcEnforcer:
     """Module 4: Atomic TC Batch Enforcer with Safe-State Watchdog.
 
     Generates `tc -b` batch files for HTB + fq_codel hierarchy
-    and applies them atomically inside ns_router. Monitors system
-    health and rolls back on failure.
+    and applies them atomically inside ns_router or live host interface.
+    Monitors system health and rolls back on failure.
 
     Attributes:
         safe_state_active: True if system is in safe (fq_codel) state.
@@ -44,8 +44,13 @@ class TcEnforcer:
         rollback_count: Number of times safe-state rollback was triggered.
     """
 
-    def __init__(self, namespace: str = ROUTER_NS):
+    def __init__(self,
+                 namespace: Optional[str] = ROUTER_NS,
+                 download_iface: str = DOWNLOAD_IFACE,
+                 upload_iface: str = UPLOAD_IFACE):
         self.namespace = namespace
+        self.download_iface = download_iface
+        self.upload_iface = upload_iface
         self.safe_state_active = True
         self.last_batch_file: Optional[str] = None
         self.rollback_count = 0
@@ -53,6 +58,11 @@ class TcEnforcer:
         self._watchdog_running = False
         self._watchdog_thread: Optional[threading.Thread] = None
         self._last_apply_time = 0.0
+
+    @property
+    def ns_prefix(self) -> str:
+        """Namespace execution prefix (empty string if namespace is None or '')."""
+        return f"ip netns exec {self.namespace} " if self.namespace else ""
 
     def generate_htb_batch(self,
                             iface: str,
@@ -160,38 +170,59 @@ class TcEnforcer:
             List of iptables command strings.
         """
         commands = []
-        commands.append(
-            f"ip netns exec {self.namespace} iptables -t mangle -F AEGIS"
-        )
-        commands.append(
-            f"ip netns exec {self.namespace} ip6tables -t mangle -F AEGIS"
-        )
-
-        # Ensure PREROUTING and FORWARD hook jumps to AEGIS
-        commands.append(
-            f"ip netns exec {self.namespace} iptables -t mangle -C PREROUTING -j AEGIS 2>/dev/null || "
-            f"ip netns exec {self.namespace} iptables -t mangle -I PREROUTING 1 -j AEGIS"
-        )
-        commands.append(
-            f"ip netns exec {self.namespace} iptables -t mangle -C FORWARD -j AEGIS 2>/dev/null || "
-            f"ip netns exec {self.namespace} iptables -t mangle -I FORWARD 1 -j AEGIS"
-        )
-        commands.append(
-            f"ip netns exec {self.namespace} ip6tables -t mangle -C PREROUTING -j AEGIS 2>/dev/null || "
-            f"ip netns exec {self.namespace} ip6tables -t mangle -I PREROUTING 1 -j AEGIS"
-        )
-        commands.append(
-            f"ip netns exec {self.namespace} ip6tables -t mangle -C FORWARD -j AEGIS 2>/dev/null || "
-            f"ip netns exec {self.namespace} ip6tables -t mangle -I FORWARD 1 -j AEGIS"
-        )
+        # Create or flush AEGIS mangle chain
+        for ipt in ["iptables", "ip6tables"]:
+            commands.append(
+                f"{self.ns_prefix}{ipt} -t mangle -N AEGIS 2>/dev/null || true"
+            )
+            commands.append(
+                f"{self.ns_prefix}{ipt} -t mangle -F AEGIS"
+            )
+            # Ensure PREROUTING and FORWARD hook jumps to AEGIS
+            commands.append(
+                f"{self.ns_prefix}{ipt} -t mangle -C PREROUTING -j AEGIS 2>/dev/null || "
+                f"{self.ns_prefix}{ipt} -t mangle -I PREROUTING 1 -j AEGIS"
+            )
+            commands.append(
+                f"{self.ns_prefix}{ipt} -t mangle -C FORWARD -j AEGIS 2>/dev/null || "
+                f"{self.ns_prefix}{ipt} -t mangle -I FORWARD 1 -j AEGIS"
+            )
 
         # Prioritize ICMP / ICMPv6 probes with mark 0x10 (Class 1:10)
         if include_icmp:
             commands.append(
-                f"ip netns exec {self.namespace} iptables -t mangle -A AEGIS -p icmp -j MARK --set-mark 0x10"
+                f"{self.ns_prefix}iptables -t mangle -A AEGIS -p icmp -j MARK --set-mark 0x10"
             )
             commands.append(
-                f"ip netns exec {self.namespace} ip6tables -t mangle -A AEGIS -p ipv6-icmp -j MARK --set-mark 0x10"
+                f"{self.ns_prefix}ip6tables -t mangle -A AEGIS -p ipv6-icmp -j MARK --set-mark 0x10"
+            )
+
+        # ── Control-Plane: Universal DNS Prioritization (0x10) ───────────────
+        # Mark DNS traffic (-p udp --dport 53, -p udp --sport 53, -p tcp --dport 53, -p tcp --sport 53)
+        # with 0x10 (Class 0: Realtime priority 1:10) so queries never get stalled behind bulk transfers
+        for ipt in ["iptables", "ip6tables"]:
+            commands.append(
+                f"{self.ns_prefix}{ipt} -t mangle -A AEGIS -p udp --dport 53 -j MARK --set-mark 0x10"
+            )
+            commands.append(
+                f"{self.ns_prefix}{ipt} -t mangle -A AEGIS -p udp --sport 53 -j MARK --set-mark 0x10"
+            )
+            commands.append(
+                f"{self.ns_prefix}{ipt} -t mangle -A AEGIS -p tcp --dport 53 -j MARK --set-mark 0x10"
+            )
+            commands.append(
+                f"{self.ns_prefix}{ipt} -t mangle -A AEGIS -p tcp --sport 53 -j MARK --set-mark 0x10"
+            )
+
+        # ── TCP Fast-Path: SYN & Small ACK Prioritization (0x10) ─────────────
+        # Mark TCP SYN and small TCP ACK packets (length 0:128) with 0x10 so asymmetric
+        # upload saturation never chokes downstream TCP return throughput.
+        for ipt in ["iptables", "ip6tables"]:
+            commands.append(
+                f"{self.ns_prefix}{ipt} -t mangle -A AEGIS -p tcp -m tcp --tcp-flags SYN,RST,ACK ACK -m length --length 0:128 -j MARK --set-mark 0x10"
+            )
+            commands.append(
+                f"{self.ns_prefix}{ipt} -t mangle -A AEGIS -p tcp -m tcp --tcp-flags SYN,RST SYN -j MARK --set-mark 0x10"
             )
 
         # Default static standard service mappings (bidirectional: --sport AND --dport with explicit hex marks)
@@ -213,24 +244,22 @@ class TcEnforcer:
             ("tcp", 1935, "0x30"),
             ("tcp", 80, "0x30"),
             ("tcp", 443, "0x30"),
-            ("udp", 53, "0x30"),
-            ("tcp", 53, "0x30"),
             # Class 3: Bulk transfer (fwmark 0x40)
             ("tcp", 5201, "0x40"),
         ]
 
         for proto, port, hex_mark in default_rules:
             commands.append(
-                f"ip netns exec {self.namespace} iptables -t mangle -A AEGIS -p {proto} --sport {port} -j MARK --set-mark {hex_mark}"
+                f"{self.ns_prefix}iptables -t mangle -A AEGIS -p {proto} --sport {port} -j MARK --set-mark {hex_mark}"
             )
             commands.append(
-                f"ip netns exec {self.namespace} iptables -t mangle -A AEGIS -p {proto} --dport {port} -j MARK --set-mark {hex_mark}"
+                f"{self.ns_prefix}iptables -t mangle -A AEGIS -p {proto} --dport {port} -j MARK --set-mark {hex_mark}"
             )
             commands.append(
-                f"ip netns exec {self.namespace} ip6tables -t mangle -A AEGIS -p {proto} --sport {port} -j MARK --set-mark {hex_mark}"
+                f"{self.ns_prefix}ip6tables -t mangle -A AEGIS -p {proto} --sport {port} -j MARK --set-mark {hex_mark}"
             )
             commands.append(
-                f"ip netns exec {self.namespace} ip6tables -t mangle -A AEGIS -p {proto} --dport {port} -j MARK --set-mark {hex_mark}"
+                f"{self.ns_prefix}ip6tables -t mangle -A AEGIS -p {proto} --dport {port} -j MARK --set-mark {hex_mark}"
             )
 
         # Custom flow marks from classifier / overrides
@@ -241,20 +270,20 @@ class TcEnforcer:
                 if len(parts) == 2:
                     p_proto, p_port = parts[0], parts[1]
                     commands.append(
-                        f"ip netns exec {self.namespace} iptables -t mangle -I AEGIS 1 -p {p_proto} --sport {p_port} -j MARK --set-mark {m_hex}"
+                        f"{self.ns_prefix}iptables -t mangle -I AEGIS 1 -p {p_proto} --sport {p_port} -j MARK --set-mark {m_hex}"
                     )
                     commands.append(
-                        f"ip netns exec {self.namespace} iptables -t mangle -I AEGIS 1 -p {p_proto} --dport {p_port} -j MARK --set-mark {m_hex}"
+                        f"{self.ns_prefix}iptables -t mangle -I AEGIS 1 -p {p_proto} --dport {p_port} -j MARK --set-mark {m_hex}"
                     )
                     commands.append(
-                        f"ip netns exec {self.namespace} ip6tables -t mangle -I AEGIS 1 -p {p_proto} --sport {p_port} -j MARK --set-mark {m_hex}"
+                        f"{self.ns_prefix}ip6tables -t mangle -I AEGIS 1 -p {p_proto} --sport {p_port} -j MARK --set-mark {m_hex}"
                     )
                     commands.append(
-                        f"ip netns exec {self.namespace} ip6tables -t mangle -I AEGIS 1 -p {p_proto} --dport {p_port} -j MARK --set-mark {m_hex}"
+                        f"{self.ns_prefix}ip6tables -t mangle -I AEGIS 1 -p {p_proto} --dport {p_port} -j MARK --set-mark {m_hex}"
                     )
                 elif len(parts) == 5:
                     p_proto, s_ip, d_ip, s_port, d_port = parts
-                    cmd4 = f"ip netns exec {self.namespace} iptables -t mangle -I AEGIS 1 -p {p_proto}"
+                    cmd4 = f"{self.ns_prefix}iptables -t mangle -I AEGIS 1 -p {p_proto}"
                     if s_ip and s_ip != "*":
                         cmd4 += f" -s {s_ip}"
                     if d_ip and d_ip != "*":
@@ -271,7 +300,7 @@ class TcEnforcer:
     def apply_iptables_rules(self,
                              flow_marks: Optional[Dict[str, int]] = None,
                              include_icmp: bool = True) -> bool:
-        """Apply iptables mangle rules inside the router namespace."""
+        """Apply iptables mangle rules inside the router namespace or host."""
         cmds = self.generate_iptables_rules(flow_marks, include_icmp=include_icmp)
         success = True
         for cmd in cmds:
@@ -281,7 +310,7 @@ class TcEnforcer:
         return success
 
     def apply_batch(self, iface: str, batch_content: str) -> Tuple[bool, str]:
-        """Apply tc batch atomically inside the router namespace.
+        """Apply tc batch atomically inside the router namespace or host.
 
         Args:
             iface: Interface being configured.
@@ -293,7 +322,7 @@ class TcEnforcer:
         with self._lock:
             # Delete existing root qdisc to avoid HTB "Change operation not supported" error on re-application
             subprocess.run(
-                f"ip netns exec {self.namespace} tc qdisc del dev {iface} root 2>/dev/null || true",
+                f"{self.ns_prefix}tc qdisc del dev {iface} root 2>/dev/null || true",
                 shell=True, capture_output=True
             )
 
@@ -308,7 +337,7 @@ class TcEnforcer:
             self.last_batch_file = batch_file.name
 
             # Execute atomically via tc -b
-            cmd = f"ip netns exec {self.namespace} tc -b {batch_file.name}"
+            cmd = f"{self.ns_prefix}tc -b {batch_file.name}"
             try:
                 result = subprocess.run(
                     cmd, shell=True, capture_output=True, text=True, timeout=10
@@ -341,38 +370,60 @@ class TcEnforcer:
                        wan_rate_mbit: float,
                        class_rates_mbit: Dict[int, float],
                        headroom_factor: float = 0.90,
-                       cap_bulk_ceil: bool = True
+                       cap_bulk_ceil: bool = True,
+                       upload_rate_mbit: Optional[float] = None,
+                       upload_class_rates_mbit: Optional[Dict[int, float]] = None
                        ) -> Tuple[bool, str]:
-        """Apply full bidirectional shaping on both download and upload interfaces.
+        """Apply bidirectional shaping on both download and upload interfaces.
+
+        Supports asymmetric links (e.g. 50 Mbps down / 10 Mbps up).
 
         Args:
-            wan_rate_mbit: Total WAN capacity.
-            class_rates_mbit: Dict of class_label → allocated rate.
+            wan_rate_mbit: Total download WAN capacity.
+            class_rates_mbit: Dict of class_label → allocated download rate.
             headroom_factor: Bottleneck ownership fraction (default: 0.90).
             cap_bulk_ceil: If True, caps bulk ceil at 70% of effective capacity.
+            upload_rate_mbit: Optional upload rate (defaults to wan_rate_mbit).
+            upload_class_rates_mbit: Optional dict of class_label → allocated upload rate.
 
         Returns:
             (success, output) tuple.
         """
-        results = []
+        up_rate = upload_rate_mbit if upload_rate_mbit is not None else wan_rate_mbit
+        if upload_class_rates_mbit is not None:
+            up_alloc = upload_class_rates_mbit
+        elif upload_rate_mbit is not None and wan_rate_mbit > 0:
+            scale = upload_rate_mbit / wan_rate_mbit
+            up_alloc = {k: round(v * scale, 2) for k, v in class_rates_mbit.items()}
+        else:
+            up_alloc = class_rates_mbit
 
-        for iface in [DOWNLOAD_IFACE, UPLOAD_IFACE]:
-            batch = self.generate_htb_batch(
-                iface, wan_rate_mbit, class_rates_mbit,
-                headroom_factor=headroom_factor,
-                cap_bulk_ceil=cap_bulk_ceil
-            )
-            ok, output = self.apply_batch(iface, batch)
-            results.append((iface, ok, output))
-            if not ok:
-                return False, f"Failed on {iface}: {output}"
+        # Download interface
+        batch_down = self.generate_htb_batch(
+            self.download_iface, wan_rate_mbit, class_rates_mbit,
+            headroom_factor=headroom_factor,
+            cap_bulk_ceil=cap_bulk_ceil
+        )
+        ok_d, out_d = self.apply_batch(self.download_iface, batch_down)
+        if not ok_d:
+            return False, f"Failed on download {self.download_iface}: {out_d}"
+
+        # Upload interface
+        batch_up = self.generate_htb_batch(
+            self.upload_iface, up_rate, up_alloc,
+            headroom_factor=headroom_factor,
+            cap_bulk_ceil=cap_bulk_ceil
+        )
+        ok_u, out_u = self.apply_batch(self.upload_iface, batch_up)
+        if not ok_u:
+            return False, f"Failed on upload {self.upload_iface}: {out_u}"
 
         return True, "Shaping applied on both interfaces"
 
     def rollback(self) -> Tuple[bool, str]:
         """Manually trigger safe-state rollback on both interfaces."""
         results = []
-        for iface in [DOWNLOAD_IFACE, UPLOAD_IFACE]:
+        for iface in [self.download_iface, self.upload_iface]:
             ok = self._rollback_safe_state(iface, "Manual rollback requested")
             results.append((iface, ok))
         success = all(ok for _, ok in results)
@@ -380,10 +431,7 @@ class TcEnforcer:
 
     def _rollback_safe_state(self, iface: str, reason: str) -> bool:
         """Roll back a single interface to fq_codel safe state."""
-        cmd = (
-            f"ip netns exec {self.namespace} "
-            f"tc qdisc replace dev {iface} root {SAFE_STATE_QDISC}"
-        )
+        cmd = f"{self.ns_prefix}tc qdisc replace dev {iface} root {SAFE_STATE_QDISC}"
         try:
             result = subprocess.run(
                 cmd, shell=True, capture_output=True, text=True, timeout=5
@@ -425,7 +473,7 @@ class TcEnforcer:
                 # Check CPU utilization
                 cpu_pct = psutil.cpu_percent(interval=1.0)
                 if cpu_pct > WATCHDOG_CPU_THRESHOLD and not self.safe_state_active:
-                    for iface in [DOWNLOAD_IFACE, UPLOAD_IFACE]:
+                    for iface in [self.download_iface, self.upload_iface]:
                         self._rollback_safe_state(
                             iface,
                             f"CPU {cpu_pct:.1f}% > threshold {WATCHDOG_CPU_THRESHOLD}%"
@@ -442,17 +490,15 @@ class TcEnforcer:
             "watchdog_running": self._watchdog_running,
             "last_batch_file": self.last_batch_file,
             "namespace": self.namespace,
-            "download_iface": DOWNLOAD_IFACE,
-            "upload_iface": UPLOAD_IFACE,
+            "download_iface": self.download_iface,
+            "upload_iface": self.upload_iface,
         }
 
     def get_tc_stats(self, iface: str) -> str:
         """Query current tc qdisc statistics for an interface."""
-        cmd = f"ip netns exec {self.namespace} tc -s qdisc show dev {iface}"
+        cmd = f"{self.ns_prefix}tc -s qdisc show dev {iface}"
         try:
-            result = subprocess.run(
-                cmd, shell=True, capture_output=True, text=True, timeout=5
-            )
-            return result.stdout
+            res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=5)
+            return res.stdout
         except Exception as e:
-            return f"Error: {e}"
+            return f"Error querying tc stats: {e}"

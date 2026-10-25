@@ -1,122 +1,46 @@
 {
-  "scenario_1": {
+  "scenario_4": {
     "baseline": {
-      "scenario": "Scenario 1",
+      "scenario": "Scenario 4",
       "regime": "baseline",
-      "video_rtt_avg_ms": 181.12,
-      "video_rtt_p95_ms": 250.9,
-      "video_jitter_ms": 15.9,
-      "video_loss_pct": 0.0,
-      "bulk_throughput_mbps": 51.81,
-      "bulk_floor_satisfied": true,
+      "video_rtt_avg_ms": 42.01,
+      "video_rtt_p95_ms": 179.64,
+      "video_jitter_ms": 37.34,
+      "video_loss_pct": 9.52,
+      "swarm_upload_mbps": 12.96,
+      "swarm_download_mbps": 15.97,
+      "ack_fastpath_protected": false,
       "avg_queue_depth": 0.0,
       "max_queue_depth": 0,
-      "samples": 20
+      "samples": 12
     },
     "deterministic": {
-      "scenario": "Scenario 1",
+      "scenario": "Scenario 4",
       "regime": "deterministic",
-      "video_rtt_avg_ms": 187.57,
-      "video_rtt_p95_ms": 250.99,
-      "video_jitter_ms": 13.31,
+      "video_rtt_avg_ms": 50.93,
+      "video_rtt_p95_ms": 115.0,
+      "video_jitter_ms": 5.33,
       "video_loss_pct": 0.0,
-      "bulk_throughput_mbps": 52.33,
-      "bulk_floor_satisfied": true,
-      "avg_queue_depth": 0.0,
-      "max_queue_depth": 0,
-      "samples": 20
+      "swarm_upload_mbps": 7.99,
+      "swarm_download_mbps": 46.66,
+      "ack_fastpath_protected": false,
+      "avg_queue_depth": 32.9,
+      "max_queue_depth": 62,
+      "samples": 12
     },
     "aegis": {
-      "scenario": "Scenario 1",
+      "scenario": "Scenario 4",
       "regime": "aegis",
-      "video_rtt_avg_ms": 31.13,
-      "video_rtt_p95_ms": 31.93,
-      "video_jitter_ms": 2.01,
+      "video_rtt_avg_ms": 33.02,
+      "video_rtt_p95_ms": 33.36,
+      "video_jitter_ms": 3.21,
       "video_loss_pct": 0.0,
-      "bulk_throughput_mbps": 31.37,
-      "bulk_floor_satisfied": true,
-      "avg_queue_depth": 0.0,
-      "max_queue_depth": 0,
-      "samples": 20
-    }
-  },
-  "scenario_2": {
-    "baseline": {
-      "scenario": "Scenario 2",
-      "regime": "baseline",
-      "video_rtt_avg_ms": 163.85,
-      "video_rtt_p95_ms": 294.76,
-      "video_jitter_ms": 129.53,
-      "video_loss_pct": 0.0,
-      "adaptation_time_s": null,
-      "max_queue_depth": 0
-    },
-    "deterministic": {
-      "scenario": "Scenario 2",
-      "regime": "deterministic",
-      "video_rtt_avg_ms": 132.28,
-      "video_rtt_p95_ms": 290.68,
-      "video_jitter_ms": 33.62,
-      "video_loss_pct": 8.2,
-      "adaptation_time_s": null,
-      "max_queue_depth": 0
-    },
-    "aegis": {
-      "scenario": "Scenario 2",
-      "regime": "aegis",
-      "video_rtt_avg_ms": 30.97,
-      "video_rtt_p95_ms": 32.18,
-      "video_jitter_ms": 1.2,
-      "video_loss_pct": 0.0,
-      "adaptation_time_s": 1.03,
-      "max_queue_depth": 0
-    }
-  },
-  "scenario_3": {
-    "baseline": {
-      "scenario": "Scenario 3",
-      "regime": "baseline",
-      "gaming_rtt_avg_ms": 41.84,
-      "gaming_rtt_p95_ms": 43.05,
-      "gaming_jitter_ms": 1.6,
-      "gaming_loss_pct": 0.0,
-      "stream_rates_mbps": {
-        "8001": 25.08,
-        "8002": 25.08,
-        "8003": 25.08
-      },
-      "jains_fairness_index": 1.0,
-      "fairness_target_met": true
-    },
-    "deterministic": {
-      "scenario": "Scenario 3",
-      "regime": "deterministic",
-      "gaming_rtt_avg_ms": 31.83,
-      "gaming_rtt_p95_ms": 33.03,
-      "gaming_jitter_ms": 1.66,
-      "gaming_loss_pct": 0.0,
-      "stream_rates_mbps": {
-        "8001": 25.08,
-        "8002": 25.08,
-        "8003": 25.08
-      },
-      "jains_fairness_index": 1.0,
-      "fairness_target_met": true
-    },
-    "aegis": {
-      "scenario": "Scenario 3",
-      "regime": "aegis",
-      "gaming_rtt_avg_ms": 31.78,
-      "gaming_rtt_p95_ms": 32.86,
-      "gaming_jitter_ms": 1.09,
-      "gaming_loss_pct": 0.0,
-      "stream_rates_mbps": {
-        "8001": 25.08,
-        "8002": 25.08,
-        "8003": 25.08
-      },
-      "jains_fairness_index": 1.0,
-      "fairness_target_met": true
+      "swarm_upload_mbps": 6.29,
+      "swarm_download_mbps": 29.36,
+      "ack_fastpath_protected": true,
+      "avg_queue_depth": 53.6,
+      "max_queue_depth": 331,
+      "samples": 12
     }
   }
 }
