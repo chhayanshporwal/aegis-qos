@@ -88,62 +88,29 @@ def main():
     st.title("🛡️ AegisQoS — Live QoS Dashboard")
     st.caption("Intent-Aware, Zero-DPI Adaptive QoS Engine for Mixed Home Broadband Traffic")
 
-    # ── Sidebar ──────────────────────────────────────────────────────────────
-    with st.sidebar:
-        st.header("⚙️ Configuration")
-        api_url = st.text_input("API URL", value=API_URL)
-        refresh = st.slider("Refresh interval (s)", 1, 10, REFRESH_INTERVAL)
-
-        st.divider()
-        st.header("🎯 User Intent")
-        intent_flow = st.text_input("Flow ID", value="flow_1")
-        intent_class = st.selectbox("Target Class", CLASS_NAMES)
-        intent_boost = st.slider("Priority Boost (%)", 0, 20, 10)
-        intent_ttl = st.slider("TTL (seconds)", 10, 300, 60)
-
-        if st.button("Set Intent", type="primary"):
-            try:
-                resp = requests.post(f"{api_url}/intent", json={
-                    "flow_id": intent_flow,
-                    "target_class": CLASS_NAMES.index(intent_class),
-                    "priority_boost": intent_boost,
-                    "ttl_seconds": intent_ttl,
-                })
-                if resp.status_code == 200:
-                    st.success(f"Intent set for {intent_flow}")
-                else:
-                    st.error(f"Failed: {resp.text}")
-            except Exception as e:
-                st.error(f"API error: {e}")
-
-        st.divider()
-        if st.button("🔴 Emergency Rollback", type="secondary"):
-            try:
-                resp = requests.post(f"{api_url}/rollback")
-                if resp.status_code == 200:
-                    st.warning("Rolled back to safe state (fq_codel)")
-                else:
-                    st.error(f"Rollback failed: {resp.text}")
-            except Exception as e:
-                st.error(f"API error: {e}")
-
-    # ── Fetch Data ───────────────────────────────────────────────────────────
-    metrics = fetch_metrics(api_url)
-    status = fetch_status(api_url)
+    # ── Initial State & Connection Detection ──────────────────────────────────
+    api_status = fetch_status(API_URL)
+    api_metrics = fetch_metrics(API_URL) if api_status else None
     live_state = fetch_live_state()
 
-    is_live_wifi = False
-    if metrics is None and live_state is not None:
-        metrics = live_state
-        is_live_wifi = True
-        st.success(f"🟢 **Live Real-Wi-Fi Mode Active** on `{live_state.get('interface', 'enp0s1')}` with IFB ingress redirection (`{live_state.get('ingress_iface', 'ifb0')}`)")
-    elif metrics is None:
-        st.warning("⚠️ Cannot connect to AegisQoS API and no live Wi-Fi state found. Is the server or live daemon running?")
-        st.info(f"Start API server: `python -m src.api.server` or Live Wi-Fi: `sudo python scripts/run_live_wifi.py`")
+    api_online = api_status is not None
+    live_wifi_active = live_state is not None and (time.time() - live_state.get("timestamp", 0) < 30.0)
 
-        # Show demo mode with sample data
-        st.divider()
-        st.subheader("📊 Demo Mode (sample data)")
+    if api_metrics is not None:
+        metrics = api_metrics
+        status = api_status
+        is_live_wifi = False
+    elif live_state is not None:
+        metrics = live_state
+        status = {
+            "mode": "live_wifi",
+            "classifier": {"status": "active"},
+            "estimator": {"status": "active"},
+            "policy": {"state": live_state.get("fsm_state", "SHAPING")},
+            "enforcer": {"status": "active", "safe_state": False},
+        }
+        is_live_wifi = True
+    else:
         metrics = {
             "rtt_ms": 42.5, "baseline_rtt_ms": 20.0, "delta_rtt_ms": 22.5,
             "jitter_ms": 5.2, "packet_loss_pct": 0.1, "bufferbloat": False,
@@ -152,6 +119,124 @@ def main():
             "fsm_state": "SHAPING", "jains_fairness": 0.94,
             "cpu_pct": 3.2, "safe_state": False, "rollback_count": 0,
         }
+        status = None
+        is_live_wifi = False
+
+    # ── Sidebar ──────────────────────────────────────────────────────────────
+    with st.sidebar:
+        st.header("⚙️ System Status")
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            if api_online:
+                st.success("🟢 API Online")
+            else:
+                st.info("⚪ API Offline")
+        with col_s2:
+            if live_wifi_active:
+                st.success("🟢 Live Wi-Fi")
+            else:
+                st.info("⚪ Live Idle")
+
+        api_url = st.text_input("API URL", value=API_URL)
+        refresh = st.slider("Refresh interval (s)", 1, 10, REFRESH_INTERVAL)
+
+        st.divider()
+        st.header("🎯 User Intent")
+
+        # Pick from active sniffed flows if available
+        active_flows = metrics.get("active_flows", [])
+        active_fids = [f["flow_id"] for f in active_flows if f.get("flow_id")]
+        if active_fids:
+            flow_selection = st.selectbox("Select Active Flow", ["Custom Entry..."] + active_fids[:20])
+            if flow_selection == "Custom Entry...":
+                intent_flow = st.text_input("Flow ID", value="flow_1")
+            else:
+                intent_flow = flow_selection
+        else:
+            intent_flow = st.text_input("Flow ID", value="flow_1")
+
+        intent_class = st.selectbox("Target Class", CLASS_NAMES)
+        intent_boost = st.slider("Priority Boost (%)", 0, 20, 10)
+        intent_ttl = st.slider("TTL (seconds)", 10, 300, 60)
+
+        if st.button("Set Intent", type="primary"):
+            target_class_idx = CLASS_NAMES.index(intent_class)
+            intent_payload = {
+                "flow_id": intent_flow,
+                "target_class": target_class_idx,
+                "priority_boost": intent_boost,
+                "ttl_seconds": intent_ttl,
+            }
+            applied = False
+
+            # 1. Try REST API if online
+            if api_online:
+                try:
+                    resp = requests.post(f"{api_url}/intent", json=intent_payload, timeout=2.0)
+                    if resp.status_code == 200:
+                        st.success(f"Intent set via API for {intent_flow}")
+                        applied = True
+                    else:
+                        st.error(f"API returned: {resp.text}")
+                except Exception:
+                    pass
+
+            # 2. If API is offline, dispatch directly to Live Wi-Fi Daemon command queue
+            if not applied and live_wifi_active:
+                try:
+                    cmd_path = "/tmp/aegis_commands.json"
+                    with open(f"{cmd_path}.tmp", "w") as f:
+                        json.dump({"action": "intent", **intent_payload}, f)
+                    os.replace(f"{cmd_path}.tmp", cmd_path)
+                    st.success(f"Intent applied to Live Wi-Fi daemon for {intent_flow} (+{intent_boost}%, TTL: {intent_ttl}s)")
+                    applied = True
+                except Exception as ex:
+                    st.error(f"Error signaling live daemon: {ex}")
+
+            if not applied and not api_online and not live_wifi_active:
+                st.warning("⚠️ API server is offline and Live Wi-Fi daemon is inactive. Start either the API (`python -m uvicorn src.api.server:app --port 8000`) or Live Wi-Fi daemon (`sudo python scripts/run_live_wifi.py`).")
+
+        st.divider()
+        if st.button("🔴 Emergency Rollback", type="secondary"):
+            applied = False
+            if api_online:
+                try:
+                    resp = requests.post(f"{api_url}/rollback", timeout=2.0)
+                    if resp.status_code == 200:
+                        st.warning("Rolled back to safe state (fq_codel) via API")
+                        applied = True
+                    else:
+                        st.error(f"Rollback failed: {resp.text}")
+                except Exception:
+                    pass
+
+            if not applied and live_wifi_active:
+                try:
+                    cmd_path = "/tmp/aegis_commands.json"
+                    with open(f"{cmd_path}.tmp", "w") as f:
+                        json.dump({"action": "rollback"}, f)
+                    os.replace(f"{cmd_path}.tmp", cmd_path)
+                    st.warning("Emergency Rollback signal sent to Live Wi-Fi Daemon")
+                    applied = True
+                except Exception as ex:
+                    st.error(f"Failed to signal live daemon: {ex}")
+
+            if not applied and not api_online and not live_wifi_active:
+                st.warning("⚠️ Neither API server nor Live Wi-Fi daemon is running.")
+
+        # Show active intents in sidebar if present
+        if metrics.get("active_intents"):
+            st.divider()
+            st.subheader("⚡ Active Intent Boosts")
+            for it in metrics["active_intents"]:
+                st.caption(f"🔹 **{it['flow_id']}** → {it['class_name']} (+{it['priority_boost']}%, {it.get('expires_in', 0)}s left)")
+
+    # ── Display Mode Banner ──────────────────────────────────────────────────
+    if is_live_wifi:
+        st.success(f"🟢 **Live Real-Wi-Fi Mode Active** on `{metrics.get('interface', 'enp0s1')}` with IFB ingress redirection (`{metrics.get('ingress_iface', 'ifb0')}`)")
+    elif api_metrics is None:
+        st.warning("⚠️ Cannot connect to AegisQoS API and no live Wi-Fi state found. Showing Demo Mode.")
+        st.info("Start API server: `sudo /home/ubuntu/aegis-venv/bin/python -m uvicorn src.api.server:app --port 8000` or Live Wi-Fi: `sudo /home/ubuntu/aegis-venv/bin/python scripts/run_live_wifi.py`")
 
     # Update history
     now = time.time()

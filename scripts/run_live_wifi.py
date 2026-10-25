@@ -159,6 +159,26 @@ class LiveWifiDaemon:
                 dt = max(loop_start - last_time, 0.1)
                 last_time = loop_start
 
+                # A0. Process pending commands / user intents from dashboard
+                cmd_file = "/tmp/aegis_commands.json"
+                if os.path.exists(cmd_file):
+                    try:
+                        with open(cmd_file, "r") as f:
+                            cmd = json.load(f)
+                        os.remove(cmd_file)
+                        if cmd.get("action") == "rollback":
+                            self.enforcer.rollback()
+                            self.policy.transition(PolicyState.EMERGENCY)
+                        elif cmd.get("action") == "intent":
+                            fid = cmd.get("flow_id", "")
+                            t_cls = int(cmd.get("target_class", 0))
+                            boost = float(cmd.get("priority_boost", 10.0))
+                            ttl = float(cmd.get("ttl_seconds", 60.0))
+                            self.policy.add_intent(fid, t_cls, boost, ttl)
+                            self.classifier.set_override(fid, t_cls)
+                    except Exception:
+                        pass
+
                 # A. Measure live RTT to 1.1.1.1
                 rtt, jitter, loss = self.estimator.measure_rtt()
                 if rtt > 0:
@@ -303,6 +323,16 @@ class LiveWifiDaemon:
             "byte_count": self.sniffer.byte_count,
             "cpu_pct": psutil.cpu_percent(interval=None),
             "active_flows": flows,
+            "active_intents": [
+                {
+                    "flow_id": i.flow_id,
+                    "target_class": i.target_class,
+                    "class_name": self.classifier.get_class_name(i.target_class),
+                    "priority_boost": i.priority_boost,
+                    "expires_in": max(0.0, round(i.created_at + i.ttl_seconds - time.time(), 1)),
+                }
+                for i in self.policy.user_intents.values() if not i.is_expired
+            ],
         }
         try:
             tmp_path = f"{self.state_file}.tmp"
