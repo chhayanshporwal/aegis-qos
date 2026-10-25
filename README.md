@@ -210,13 +210,13 @@ aegis-qos/
 
 ## 6. Verification & Automated Test Suite
 
-AegisQoS includes an exhaustive 58-test pytest suite covering all modules, edge conditions, invalid state transitions, safe-state rollbacks, live packet parsing, control-plane fast-pathing, and asymmetric shaping:
+AegisQoS includes an exhaustive 59-test pytest suite covering all modules, edge conditions, invalid state transitions, safe-state rollbacks, live packet parsing, control-plane fast-pathing, live Wi-Fi flow metadata, and asymmetric shaping:
 
 ```bash
 sudo /home/ubuntu/aegis-venv/bin/python -m pytest tests/ -v
 ```
 
-**Results (58 passed in 3.54s):**
+**Results (59 passed in 3.98s):**
 ```text
 tests/test_api_and_traffic.py::TestApiServer::test_health_endpoint PASSED
 tests/test_api_and_traffic.py::TestApiServer::test_status_endpoint PASSED
@@ -238,6 +238,7 @@ tests/test_live_and_scenario4.py::TestLivePacketSniffer::test_invalid_short_pack
 tests/test_live_and_scenario4.py::TestFlowClassifierRecordPacket::test_record_packet_alias PASSED
 tests/test_live_and_scenario4.py::TestScenario4Setup::test_swarm_transfer_worker_init PASSED
 tests/test_live_and_scenario4.py::TestScenario4Setup::test_asymmetric_shaping_rates PASSED
+tests/test_live_and_scenario4.py::TestScenario4Setup::test_live_wifi_flow_metadata_and_class_name PASSED
 tests/test_modules.py::TestFlowClassifier::test_confidence_in_range PASSED
 tests/test_modules.py::TestFlowClassifier::test_onnx_classification PASSED
 tests/test_modules.py::TestFlowClassifier::test_deterministic_fallback_threshold PASSED
@@ -254,18 +255,18 @@ tests/test_modules.py::TestCapacityEstimator::test_aimd_multiplicative_decrease 
 tests/test_modules.py::TestCapacityEstimator::test_rate_bounds PASSED
 tests/test_modules.py::TestCapacityEstimator::test_get_state PASSED
 tests/test_modules.py::TestCapacityEstimator::test_live_ping PASSED
-tests/test_modules.py::TestPolicyEngine::test_initial_state PASSED
-tests/test_modules.py::TestPolicyEngine::test_valid_transitions PASSED
-tests/test_modules.py::TestPolicyEngine::test_invalid_transition PASSED
-tests/test_modules.py::TestPolicyEngine::test_emergency_bypass PASSED
-tests/test_modules.py::TestPolicyEngine::test_emergency_recovery PASSED
-tests/test_modules.py::TestPolicyEngine::test_hysteresis_lock PASSED
-tests/test_modules.py::TestPolicyEngine::test_hysteresis_emergency_bypass PASSED
-tests/test_modules.py::TestPolicyEngine::test_bulk_starvation_floor PASSED
-tests/test_modules.py::TestPolicyEngine::test_allocations_sum_to_wan_rate PASSED
-tests/test_modules.py::TestPolicyEngine::test_user_intent_ttl PASSED
-tests/test_modules.py::TestPolicyEngine::test_jains_fairness_index PASSED
-tests/test_modules.py::TestPolicyEngine::test_get_state PASSED
+tests/test_policy_engine.py::TestPolicyEngine::test_initial_state PASSED
+tests/test_policy_engine.py::TestPolicyEngine::test_valid_transitions PASSED
+tests/test_policy_engine.py::TestPolicyEngine::test_invalid_transition PASSED
+tests/test_policy_engine.py::TestPolicyEngine::test_emergency_bypass PASSED
+tests/test_policy_engine.py::TestPolicyEngine::test_emergency_recovery PASSED
+tests/test_policy_engine.py::TestPolicyEngine::test_hysteresis_lock PASSED
+tests/test_policy_engine.py::TestPolicyEngine::test_hysteresis_emergency_bypass PASSED
+tests/test_policy_engine.py::TestPolicyEngine::test_bulk_starvation_floor PASSED
+tests/test_policy_engine.py::TestPolicyEngine::test_allocations_sum_to_wan_rate PASSED
+tests/test_policy_engine.py::TestPolicyEngine::test_user_intent_ttl PASSED
+tests/test_policy_engine.py::TestPolicyEngine::test_jains_fairness_index PASSED
+tests/test_policy_engine.py::TestPolicyEngine::test_get_state PASSED
 tests/test_modules.py::TestTcEnforcer::test_batch_generation PASSED
 tests/test_modules.py::TestTcEnforcer::test_batch_dual_stack_filters PASSED
 tests/test_modules.py::TestTcEnforcer::test_batch_fwmark_values PASSED
@@ -277,7 +278,7 @@ tests/test_modules.py::TestIntegration::test_classifier_to_policy_flow PASSED
 tests/test_modules.py::TestIntegration::test_policy_to_enforcer_flow PASSED
 tests/test_modules.py::TestIntegration::test_full_pipeline_shaping PASSED
 
-======================== 58 passed in 3.54s =========================
+======================== 59 passed in 3.98s =========================
 ```
 
 ---

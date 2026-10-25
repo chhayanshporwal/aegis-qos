@@ -208,3 +208,14 @@ class TestScenario4Setup:
 
         assert "rate 45.00mbit" in batch_down  # 50 * 0.90 = 45 Mbps effective
         assert "rate 9.00mbit" in batch_up     # 10 * 0.90 = 9 Mbps effective
+
+    def test_live_wifi_flow_metadata_and_class_name(self):
+        """Live Wi-Fi daemon must correctly resolve human-readable class names without AttributeError."""
+        from scripts.run_live_wifi import LiveWifiDaemon
+        daemon = LiveWifiDaemon(iface="lo", ifb="ifb0", wan_rate=30.0)
+        assert daemon.classifier.get_class_name(0) == "realtime_voice"
+        assert daemon.classifier.get_class_name(1) == "interactive_video"
+        assert daemon.classifier.get_class_name(2) == "responsive_web"
+        assert daemon.classifier.get_class_name(3) == "bulk_transfer"
+        assert daemon.classifier.get_class_name(99) == "unknown"
+

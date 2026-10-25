@@ -258,8 +258,12 @@ class FlowClassifier:
 
     def get_class_name(self, label: int) -> str:
         """Return human-readable class name."""
-        if 0 <= label < len(CLASS_NAMES):
-            return CLASS_NAMES[label]
+        try:
+            lbl = int(label)
+            if 0 <= lbl < len(CLASS_NAMES):
+                return CLASS_NAMES[lbl]
+        except (ValueError, TypeError):
+            pass
         return "unknown"
 
     @property

@@ -194,7 +194,7 @@ class LiveWifiDaemon:
                         "dst": dst_str,
                         "pps": pps,
                         "class_label": label,
-                        "class_name": CLASS_NAMES.get(label, "unknown"),
+                        "class_name": self.classifier.get_class_name(label),
                         "confidence": round(conf, 3),
                         "method": method,
                         "fwmark": f"0x{mark:x}",
@@ -236,6 +236,9 @@ class LiveWifiDaemon:
 
     def stop(self):
         """Gracefully stop sniffer and restore interfaces."""
+        if getattr(self, "_stopped", False):
+            return
+        self._stopped = True
         self.running = False
         self.sniffer.stop()
         self.enforcer.rollback()
