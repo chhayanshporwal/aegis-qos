@@ -45,6 +45,10 @@ class UserIntent:
     def expired(self) -> bool:
         return time.time() > self.created_at + self.ttl_seconds
 
+    @property
+    def is_expired(self) -> bool:
+        return self.expired
+
 
 # ── Default bandwidth allocation profiles (% of WAN capacity) ──
 # Indexed by traffic class: [realtime_voice, interactive_video, responsive_web, bulk_transfer]

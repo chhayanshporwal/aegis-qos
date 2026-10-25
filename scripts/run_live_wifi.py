@@ -338,7 +338,7 @@ class LiveWifiDaemon:
                     "priority_boost": i.priority_boost,
                     "expires_in": max(0.0, round(i.created_at + i.ttl_seconds - time.time(), 1)),
                 }
-                for i in self.policy.user_intents.values() if not i.is_expired
+                for i in self.policy.user_intents.values() if not i.expired
             ],
         }
         try:

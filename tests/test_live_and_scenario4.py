@@ -7,6 +7,7 @@ import os
 import sys
 import socket
 import struct
+import time
 import pytest
 
 # Add project root to path
@@ -210,12 +211,28 @@ class TestScenario4Setup:
         assert "rate 9.00mbit" in batch_up     # 10 * 0.90 = 9 Mbps effective
 
     def test_live_wifi_flow_metadata_and_class_name(self):
-        """Live Wi-Fi daemon must correctly resolve human-readable class names without AttributeError."""
+        """Live Wi-Fi daemon must correctly resolve human-readable class names and active intents without AttributeError."""
         from scripts.run_live_wifi import LiveWifiDaemon
+        from src.policy.policy_engine import UserIntent
+
+        intent = UserIntent(flow_id="test_flow", target_class=0, priority_boost=15.0, created_at=time.time(), ttl_seconds=60.0)
+        assert not intent.expired
+        assert not intent.is_expired
+
         daemon = LiveWifiDaemon(iface="lo", ifb="ifb0", wan_rate=30.0)
         assert daemon.classifier.get_class_name(0) == "realtime_voice"
         assert daemon.classifier.get_class_name(1) == "interactive_video"
         assert daemon.classifier.get_class_name(2) == "responsive_web"
         assert daemon.classifier.get_class_name(3) == "bulk_transfer"
         assert daemon.classifier.get_class_name(99) == "unknown"
+
+        # Verify export state works with active intents
+        daemon.policy.add_intent("test_flow", 0, 15.0, 60.0)
+        daemon._export_state([], {0: 10.0, 1: 10.0, 2: 5.0, 3: 5.0})
+        import json
+        with open(daemon.state_file, "r") as f:
+            data = json.load(f)
+        assert len(data["active_intents"]) == 1
+        assert data["active_intents"][0]["flow_id"] == "test_flow"
+
 
