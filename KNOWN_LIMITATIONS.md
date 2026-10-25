@@ -4,8 +4,8 @@
 
 | Aspect | AegisQoS Prototype | Production-Grade System |
 |---|---|---|
-| **Topology** | 4 Linux `ip netns` namespaces on a single host (Ubuntu 24.04 LTS) | Physical CPE router (RDK-B / OpenWrt) with real ISP uplink |
-| **Traffic shaping** | `tc` HTB + `fq_codel` qdiscs on `veth` interfaces | eBPF / XDP programs on NIC queues, hardware-offloaded QoS |
+| **Topology** | Dual-Mode: 4 Linux `ip netns` namespaces for reproducible evaluation & CI, plus **Live Real-Wi-Fi Mode** (`enp0s1` + `ifb0` ingress redirection) | Physical CPE router (RDK-B / OpenWrt) with native ISP uplink |
+| **Traffic shaping** | `tc` HTB + `fq_codel` qdiscs on `veth` / `enp0s1` / `ifb0` | eBPF / XDP programs on NIC queues, hardware-offloaded QoS |
 | **WAN emulation** | `tc netem` rate / delay / jitter / loss on `ns_wan_netem` namespace | Real ISP last-mile characteristics (DOCSIS, PON, DSL) |
 | **Classification** | LightGBM / ONNX on L3/L4 statistical metadata (zero DPI) | Production ML pipeline with continuous retraining, A/B testing |
 | **Capacity estimation** | Passive ΔRTT + AIMD heuristic | BBR-style in-kernel congestion sensing or ISP API (TR-369 USP) |

@@ -13,8 +13,11 @@ Usage:
   streamlit run src/dashboard/app.py -- --api-url http://localhost:8000
 """
 
+import os
+import json
 import time
 import argparse
+from typing import Optional, Dict, List
 import requests
 import streamlit as st
 import plotly.graph_objects as go
@@ -46,10 +49,6 @@ if "rtt_history" not in st.session_state:
     st.session_state.fairness_history = deque(maxlen=MAX_POINTS)
     st.session_state.timestamps = deque(maxlen=MAX_POINTS)
     st.session_state.throughput_history = {c: deque(maxlen=MAX_POINTS) for c in CLASS_NAMES}
-
-
-import os
-import json
 
 
 def fetch_live_state(state_file: str = "/tmp/aegis_live_state.json") -> Optional[dict]:

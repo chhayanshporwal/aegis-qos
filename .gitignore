@@ -24,3 +24,5 @@ htmlcov/
 
 # Documents / PDFs
 *.pdf
+SPEC.md
+*.bak

@@ -3,10 +3,11 @@
 # AegisQoS — Master 1-Click Automated Benchmark & Experiment Runner
 # Tata Elxsi TELIPORT Season 4 — Case Study 3 (Team CS-02)
 #
-# Executes all 3 Case Study scenarios across Baseline, Deterministic, and AegisQoS:
+# Executes all 4 Case Study scenarios across Baseline, Deterministic, and AegisQoS:
 #   - Scenario 1: ISO Download vs Video Call Protection
 #   - Scenario 2: Dynamic WAN Drop (100M -> 20M) & AIMD Adaptation
 #   - Scenario 3: 3 Concurrent TV Streams vs Gaming Latency
+#   - Scenario 4: Asymmetric Upload Choke + 16-Stream P2P Swarm
 #
 # Generates real evidence in results/:
 #   - benchmark_metrics.csv
@@ -14,6 +15,7 @@
 #   - scenario1_rtt_comparison.html
 #   - scenario2_wan_adaptation.html
 #   - scenario3_fairness_gaming.html
+#   - scenario4_asymmetric_swarm.html
 #   - BENCHMARK_REPORT.md
 ###############################################################################
 set -euo pipefail

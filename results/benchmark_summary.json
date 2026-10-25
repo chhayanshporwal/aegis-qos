@@ -1,46 +1,166 @@
 {
+  "scenario_1": {
+    "baseline": {
+      "scenario": "Scenario 1",
+      "regime": "baseline",
+      "video_rtt_avg_ms": 184.09,
+      "video_rtt_p95_ms": 254.22,
+      "video_jitter_ms": 11.26,
+      "video_loss_pct": 0.0,
+      "bulk_throughput_mbps": 52.44,
+      "bulk_floor_satisfied": true,
+      "avg_queue_depth": 0.0,
+      "max_queue_depth": 0,
+      "samples": 16
+    },
+    "deterministic": {
+      "scenario": "Scenario 1",
+      "regime": "deterministic",
+      "video_rtt_avg_ms": 138.92,
+      "video_rtt_p95_ms": 251.64,
+      "video_jitter_ms": 12.32,
+      "video_loss_pct": 0.0,
+      "bulk_throughput_mbps": 52.95,
+      "bulk_floor_satisfied": true,
+      "avg_queue_depth": 0.0,
+      "max_queue_depth": 0,
+      "samples": 16
+    },
+    "aegis": {
+      "scenario": "Scenario 1",
+      "regime": "aegis",
+      "video_rtt_avg_ms": 31.13,
+      "video_rtt_p95_ms": 31.98,
+      "video_jitter_ms": 1.38,
+      "video_loss_pct": 0.0,
+      "bulk_throughput_mbps": 31.66,
+      "bulk_floor_satisfied": true,
+      "avg_queue_depth": 0.0,
+      "max_queue_depth": 0,
+      "samples": 16
+    }
+  },
+  "scenario_2": {
+    "baseline": {
+      "scenario": "Scenario 2",
+      "regime": "baseline",
+      "video_rtt_avg_ms": 68.87,
+      "video_rtt_p95_ms": 274.88,
+      "video_jitter_ms": 68.92,
+      "video_loss_pct": 4.88,
+      "adaptation_time_s": null,
+      "max_queue_depth": 0
+    },
+    "deterministic": {
+      "scenario": "Scenario 2",
+      "regime": "deterministic",
+      "video_rtt_avg_ms": 182.05,
+      "video_rtt_p95_ms": 285.04,
+      "video_jitter_ms": 19.46,
+      "video_loss_pct": 5.71,
+      "adaptation_time_s": null,
+      "max_queue_depth": 0
+    },
+    "aegis": {
+      "scenario": "Scenario 2",
+      "regime": "aegis",
+      "video_rtt_avg_ms": 31.14,
+      "video_rtt_p95_ms": 32.11,
+      "video_jitter_ms": 1.77,
+      "video_loss_pct": 0.0,
+      "adaptation_time_s": 1.04,
+      "max_queue_depth": 0
+    }
+  },
+  "scenario_3": {
+    "baseline": {
+      "scenario": "Scenario 3",
+      "regime": "baseline",
+      "gaming_rtt_avg_ms": 42.31,
+      "gaming_rtt_p95_ms": 43.11,
+      "gaming_jitter_ms": 2.15,
+      "gaming_loss_pct": 0.0,
+      "stream_rates_mbps": {
+        "8001": 25.06,
+        "8002": 25.06,
+        "8003": 25.06
+      },
+      "jains_fairness_index": 1.0,
+      "fairness_target_met": true
+    },
+    "deterministic": {
+      "scenario": "Scenario 3",
+      "regime": "deterministic",
+      "gaming_rtt_avg_ms": 32.11,
+      "gaming_rtt_p95_ms": 33.98,
+      "gaming_jitter_ms": 2.07,
+      "gaming_loss_pct": 0.0,
+      "stream_rates_mbps": {
+        "8001": 25.06,
+        "8002": 25.06,
+        "8003": 25.06
+      },
+      "jains_fairness_index": 1.0,
+      "fairness_target_met": true
+    },
+    "aegis": {
+      "scenario": "Scenario 3",
+      "regime": "aegis",
+      "gaming_rtt_avg_ms": 32.74,
+      "gaming_rtt_p95_ms": 34.48,
+      "gaming_jitter_ms": 2.12,
+      "gaming_loss_pct": 0.0,
+      "stream_rates_mbps": {
+        "8001": 23.91,
+        "8002": 24.22,
+        "8003": 24.64
+      },
+      "jains_fairness_index": 0.9998,
+      "fairness_target_met": true
+    }
+  },
   "scenario_4": {
     "baseline": {
       "scenario": "Scenario 4",
       "regime": "baseline",
-      "video_rtt_avg_ms": 42.01,
-      "video_rtt_p95_ms": 179.64,
-      "video_jitter_ms": 37.34,
-      "video_loss_pct": 9.52,
-      "swarm_upload_mbps": 12.96,
-      "swarm_download_mbps": 15.97,
+      "video_rtt_avg_ms": 56.43,
+      "video_rtt_p95_ms": 205.69,
+      "video_jitter_ms": 51.97,
+      "video_loss_pct": 5.41,
+      "swarm_upload_mbps": 12.48,
+      "swarm_download_mbps": 18.98,
       "ack_fastpath_protected": false,
       "avg_queue_depth": 0.0,
       "max_queue_depth": 0,
-      "samples": 12
+      "samples": 16
     },
     "deterministic": {
       "scenario": "Scenario 4",
       "regime": "deterministic",
-      "video_rtt_avg_ms": 50.93,
-      "video_rtt_p95_ms": 115.0,
-      "video_jitter_ms": 5.33,
+      "video_rtt_avg_ms": 51.9,
+      "video_rtt_p95_ms": 77.17,
+      "video_jitter_ms": 4.42,
       "video_loss_pct": 0.0,
-      "swarm_upload_mbps": 7.99,
-      "swarm_download_mbps": 46.66,
+      "swarm_upload_mbps": 8.49,
+      "swarm_download_mbps": 46.87,
       "ack_fastpath_protected": false,
-      "avg_queue_depth": 32.9,
-      "max_queue_depth": 62,
-      "samples": 12
+      "avg_queue_depth": 23.9,
+      "max_queue_depth": 66,
+      "samples": 16
     },
     "aegis": {
       "scenario": "Scenario 4",
       "regime": "aegis",
-      "video_rtt_avg_ms": 33.02,
-      "video_rtt_p95_ms": 33.36,
-      "video_jitter_ms": 3.21,
+      "video_rtt_avg_ms": 32.5,
+      "video_rtt_p95_ms": 33.53,
+      "video_jitter_ms": 1.95,
       "video_loss_pct": 0.0,
       "swarm_upload_mbps": 6.29,
       "swarm_download_mbps": 29.36,
       "ack_fastpath_protected": true,
-      "avg_queue_depth": 53.6,
-      "max_queue_depth": 331,
-      "samples": 12
+      "avg_queue_depth": 35.8,
+      "max_queue_depth": 245,
+      "samples": 16
     }
   }
 }

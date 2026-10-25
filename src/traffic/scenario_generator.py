@@ -879,31 +879,37 @@ class ScenarioGenerator:
     # ── Benchmark Master Suite ───────────────────────────────────────────────
 
     def run_all(self, duration_per_run: float = 10.0) -> Dict:
-        """Run all 3 scenarios across all 3 regimes (9 benchmark runs total)."""
+        """Run all 4 scenarios across all 3 regimes (12 benchmark runs total)."""
         print("=================================================================")
         print(" AegisQoS Master Benchmark Suite (Tata Elxsi Case Study 3)")
-        print(f" Duration per run: {duration_per_run}s | 9 total runs")
+        print(f" Duration per run: {duration_per_run}s | 12 total runs")
         print("=================================================================")
 
         all_summaries = {}
         regimes = ["baseline", "deterministic", "aegis"]
 
-        # Scenario 1
+        # Scenario 1: ISO Download + Video Call
         all_summaries["scenario_1"] = {}
         for r in regimes:
             all_summaries["scenario_1"][r] = self.run_scenario_1(r, duration=duration_per_run)
             time.sleep(1.0)
 
-        # Scenario 2
+        # Scenario 2: Dynamic WAN Drop (100M -> 20M)
         all_summaries["scenario_2"] = {}
         for r in regimes:
             all_summaries["scenario_2"][r] = self.run_scenario_2(r, duration=duration_per_run + 2.0)
             time.sleep(1.0)
 
-        # Scenario 3
+        # Scenario 3: 3 TVs + Gaming
         all_summaries["scenario_3"] = {}
         for r in regimes:
             all_summaries["scenario_3"][r] = self.run_scenario_3(r, duration=duration_per_run)
+            time.sleep(1.0)
+
+        # Scenario 4: Asymmetric Upload Choke + 16-Stream P2P Swarm
+        all_summaries["scenario_4"] = {}
+        for r in regimes:
+            all_summaries["scenario_4"][r] = self.run_scenario_4(r, duration=duration_per_run)
             time.sleep(1.0)
 
         # Export metrics and reports
@@ -976,6 +982,17 @@ class ScenarioGenerator:
                                xaxis_title="Time (s)", yaxis_title="Gaming RTT (ms)", height=500, template="plotly_white")
             fig3.write_html(os.path.join(self.results_dir, "scenario3_fairness_gaming.html"))
 
+        # Chart 4: Scenario 4 Asymmetric Upload Choke + P2P Swarm
+        s4 = df[df["scenario"].str.contains("Scenario 4")]
+        if not s4.empty:
+            fig4 = make_subplots(rows=2, cols=1, subplot_titles=("WebRTC Video Call RTT (ms)", "Router Queue Depth (pkts)"))
+            for reg in s4["regime"].unique():
+                sub = s4[s4["regime"] == reg]
+                fig4.add_trace(go.Scatter(x=sub["elapsed_s"], y=sub["rtt_ms"], name=f"{reg} RTT", mode="lines+markers"), row=1, col=1)
+                fig4.add_trace(go.Scatter(x=sub["elapsed_s"], y=sub["queue_depth_pkts"], name=f"{reg} Queue", mode="lines"), row=2, col=1)
+            fig4.update_layout(title="Scenario 4: Asymmetric Upload Choke + 16-Stream P2P Swarm Protection", height=600, template="plotly_white")
+            fig4.write_html(os.path.join(self.results_dir, "scenario4_asymmetric_swarm.html"))
+
         print(f"[Export] Generated Plotly HTML reports in {self.results_dir}")
 
     def _generate_markdown_report(self, summaries: Dict):
@@ -985,6 +1002,7 @@ class ScenarioGenerator:
         s1 = summaries.get("scenario_1", {})
         s2 = summaries.get("scenario_2", {})
         s3 = summaries.get("scenario_3", {})
+        s4 = summaries.get("scenario_4", {})
 
         # Compute improvements
         s1_base_rtt = s1.get("baseline", {}).get("video_rtt_avg_ms", 1.0) or 1.0
@@ -998,6 +1016,10 @@ class ScenarioGenerator:
         s3_base_rtt = s3.get("baseline", {}).get("gaming_rtt_avg_ms", 1.0) or 1.0
         s3_aegis_rtt = s3.get("aegis", {}).get("gaming_rtt_avg_ms", 1.0)
         s3_rtt_redux = max(0.0, round(((s3_base_rtt - s3_aegis_rtt) / s3_base_rtt) * 100.0, 1))
+
+        s4_base_rtt = s4.get("baseline", {}).get("video_rtt_avg_ms", 1.0) or 1.0
+        s4_aegis_rtt = s4.get("aegis", {}).get("video_rtt_avg_ms", 1.0)
+        s4_rtt_redux = max(0.0, round(((s4_base_rtt - s4_aegis_rtt) / s4_base_rtt) * 100.0, 1))
 
         md = f"""# AegisQoS Comprehensive Benchmark Report
 **Team CS-02** | Tata Elxsi TELIPORT Season 4 — Case Study 3  
@@ -1018,6 +1040,9 @@ class ScenarioGenerator:
 | **Scenario 2 Adaptation Time** | N/A (Failed) | N/A (Fixed rate) | **`{s2.get('aegis', {}).get('adaptation_time_s', 'N/A')} s`** | Fast AIMD Reshape |
 | **Scenario 3 Gaming RTT (ms)** | `{s3.get('baseline', {}).get('gaming_rtt_avg_ms', 'N/A')}` | `{s3.get('deterministic', {}).get('gaming_rtt_avg_ms', 'N/A')}` | **`{s3.get('aegis', {}).get('gaming_rtt_avg_ms', 'N/A')}`** | **`{s3_rtt_redux}%` reduction** |
 | **Scenario 3 Jain's Fairness** | `{s3.get('baseline', {}).get('jains_fairness_index', 'N/A')}` | `{s3.get('deterministic', {}).get('jains_fairness_index', 'N/A')}` | **`{s3.get('aegis', {}).get('jains_fairness_index', 'N/A')}`** | High fairness (J >= 0.90) |
+| **Scenario 4 Asymmetric Swarm RTT (ms)** | `{s4.get('baseline', {}).get('video_rtt_avg_ms', 'N/A')}` | `{s4.get('deterministic', {}).get('video_rtt_avg_ms', 'N/A')}` | **`{s4.get('aegis', {}).get('video_rtt_avg_ms', 'N/A')}`** | **`{s4_rtt_redux}%` reduction** |
+| **Scenario 4 Jitter (ms)** | `{s4.get('baseline', {}).get('video_jitter_ms', 'N/A')}` | `{s4.get('deterministic', {}).get('video_jitter_ms', 'N/A')}` | **`{s4.get('aegis', {}).get('video_jitter_ms', 'N/A')}`** | Protected (<5ms) |
+| **Scenario 4 Swarm Up / Down** | `{s4.get('baseline', {}).get('swarm_upload_mbps', 'N/A')} / {s4.get('baseline', {}).get('swarm_download_mbps', 'N/A')} M` | `{s4.get('deterministic', {}).get('swarm_upload_mbps', 'N/A')} / {s4.get('deterministic', {}).get('swarm_download_mbps', 'N/A')} M` | **`{s4.get('aegis', {}).get('swarm_upload_mbps', 'N/A')} / {s4.get('aegis', {}).get('swarm_download_mbps', 'N/A')} M`** | **TCP ACKs Fast-Pathed** |
 
 ---
 
@@ -1056,6 +1081,7 @@ Evaluators can view the live interactive Plotly HTML reports in the `results/` d
 - `scenario1_rtt_comparison.html`
 - `scenario2_wan_adaptation.html`
 - `scenario3_fairness_gaming.html`
+- `scenario4_asymmetric_swarm.html`
 """
         with open(report_path, "w") as f:
             f.write(md)
